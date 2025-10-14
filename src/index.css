@@ -1,0 +1,52 @@
+/* ---- App reset for full-width Ant Design layout ---- */
+html, body, #root {
+  height: 100%;
+}
+
+:root {
+  /* keep system font, but remove dark bg defaults */
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, ui-sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  /* IMPORTANT: remove flex centering from Vite starter */
+  display: block;
+  background: #f6f7f9; /* app background */
+  color: #1f1f1f;
+}
+
+/* Let the React root behave like a full-bleed container */
+#root {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Ant Design layout should fill the viewport */
+.ant-layout {
+  min-height: 100vh;
+  background: #f6f7f9;
+}
+
+/* Optional: make the content area white by default */
+.ant-layout-content {
+  background: transparent;
+}
+
+/* Keep your link/button styles if you want */
+a { color: #1677ff; text-decoration: none; }
+a:hover { color: #0958d9; }
+button { font-family: inherit; }
+
+.ant-layout-sider {
+  background: #fff;
+}
+.ant-menu-inline-collapsed {
+  width: 72px; /* match collapsedWidth */
+}
+
