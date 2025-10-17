@@ -7,6 +7,7 @@ import { EditOutlined } from '@ant-design/icons';
 import { useParams, useLocation } from 'react-router-dom';
 import { useMenuItems, useUpdateMenuItem } from '../../../hooks/useMenuItems';
 import MenuItemEditModal from './MenuItemEditModal';
+import { getPrimaryMenuUrl } from '../../../utils/images';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -106,10 +107,10 @@ export default function MenuPage () {
                           marginRight: 4
                         }}
                       >
-                        {item.images?.[0]
+                        {getPrimaryMenuUrl(item.images)
                           ? (
                             <img
-                              src={item.images[0]}
+                              src={getPrimaryMenuUrl(item.images)}
                               alt={item.name || 'menu image'}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                             />
@@ -193,23 +194,24 @@ export default function MenuPage () {
               />
               )}
 
-          {/* Edit Modal */}
           <MenuItemEditModal
             open={!!editing}
-            item={editing}
+            item={{ ...editing, restaurantId: rid }}
             saving={saving}
             onCancel={() => setEditing(null)}
-            onSave={async (data) => { // { description: '...' }
+            onSave={async (data) => {
               try {
                 await saveItem({ itemId: editing._id, data });
                 message.success('Menu item updated');
                 setEditing(null);
+                refetch(); // refresh list so primary image updates
               } catch (e) {
                 message.error(e?.response?.data?.message || e.message || 'Failed to update');
               }
             }}
             supportsMultipart={false}
           />
+
         </>
       )}
     </div>

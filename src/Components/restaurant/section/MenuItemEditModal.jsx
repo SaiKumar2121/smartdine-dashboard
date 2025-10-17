@@ -1,33 +1,83 @@
-import { useState, useMemo } from 'react';
-import { Modal, Form, Input, Upload, Image, Space } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Modal,
+  Form,
+  Input,
+  Space,
+  Button,
+  Typography,
+  Popconfirm,
+  Tooltip
+} from 'antd';
+import { CloseCircleFilled, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import ManageImagesModal from './ManageImagesModal';
+import { coerceImages, getPrimaryMenuUrl } from '../../../utils/images';
+
+const { Text } = Typography;
+
+// local helper: dedupe by a computed key
+const uniqueBy = (arr, getKey) => {
+  const seen = new Set();
+  return arr.filter((x) => {
+    const k = getKey(x);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
 
 export default function MenuItemEditModal ({
   open,
   item,
   onCancel,
   onSave,
-  saving,
-  supportsMultipart = true
+  saving
 }) {
   const [form] = Form.useForm();
 
-  const initialFiles = useMemo(() => {
-    const imgs = item?.images ?? [];
-    return imgs.map((url, idx) => ({
-      uid: String(idx + 1),
-      name: url.split('/').pop() || `image-${idx + 1}.jpg`,
-      status: 'done',
-      url
-    }));
-  }, [item]);
+  // Always normalize what we get from the item
+  const [imagesDraft, setImagesDraft] = useState(coerceImages(item?.images ?? []));
+  const [manageOpen, setManageOpen] = useState(false);
 
-  const [fileList, setFileList] = useState(initialFiles);
+  // Only show menu|promo; hide original
+  const visibleImages = uniqueBy(
+    coerceImages(imagesDraft).filter(im => im.type === 'menu' || im.type === 'promo'),
+    im => `${im.type}:${im.id || im.url}`
+  );
 
-  // When modal opens with a new item, reset form & files
+  // Scroll ref for the thumbnail strip
+  const stripRef = useRef(null);
+  const scrollStrip = (dir) => {
+    if (!stripRef.current) return;
+    stripRef.current.scrollBy({ left: dir * 280, behavior: 'smooth' });
+  };
+
+  // Reset when the modal opens / item changes
   const resetFromItem = () => {
     form.setFieldsValue({ description: item?.description ?? '' });
-    setFileList(initialFiles);
+    setImagesDraft(coerceImages(item?.images ?? []));
+  };
+  useEffect(() => {
+    if (open) resetFromItem();
+  }, [open, item?._id]);
+
+  // Primary display (first 'menu')
+  const primaryUrl = getPrimaryMenuUrl(imagesDraft);
+
+  // Delete: remove this variant AND its paired original via uuid
+  const removeFromDraft = (target) => {
+    const tUuid = target.uuid;
+    const tKey = target.id || target.url;
+
+    setImagesDraft(prev => {
+      const list = coerceImages(prev);
+      if (tUuid) {
+        // remove ALL records with same uuid (original/menu/promo)
+        return list.filter(x => x.uuid !== tUuid);
+      }
+      // legacy fallback (string-only items)
+      return list.filter(x => (x.id || x.url) !== tKey);
+    });
   };
 
   return (
@@ -37,73 +87,182 @@ export default function MenuItemEditModal ({
       onCancel={onCancel}
       okText='Save changes'
       confirmLoading={saving}
-      afterOpenChange={(visible) => { if (visible) resetFromItem(); }}
       onOk={() => {
-        form.validateFields().then(values => {
-          // Build payload
-          if (supportsMultipart) {
-            const fd = new FormData();
-            fd.append('description', values.description ?? '');
-
-            // Keep existing remote URLs that user didn't remove
-            const keptUrls = fileList
-              .filter(f => f.status === 'done' && f.url && !f.originFileObj)
-              .map(f => f.url);
-            keptUrls.forEach((u, i) => fd.append('keepImages[]', u));
-
-            // New files
-            fileList
-              .filter(f => f.originFileObj)
-              .forEach(f => fd.append('images', f.originFileObj));
-
-            onSave(fd);
-          } else {
-            // JSON mode (send URLs only)
-            const urls = fileList
-              .filter(f => f.status === 'done' && (f.url || f.response?.url))
-              .map(f => f.url || f.response?.url);
-            onSave({ description: values.description ?? '', images: urls });
-          }
+        form.validateFields().then((values) => {
+          // Keep uuid so backend can pair deletions/uploads
+          const normalized = coerceImages(imagesDraft).map(({ id, uuid, type, url }) => ({
+            id, uuid, type, url
+          }));
+          onSave({
+            description: values.description ?? '',
+            images: normalized
+          });
         }).catch(() => {});
       }}
-      width={720}
+      width={760}
     >
       <Form form={form} layout='vertical' initialValues={{ description: item?.description ?? '' }}>
         <Form.Item label='Description' name='description'>
-          <Input.TextArea autoSize={{ minRows: 3 }} placeholder='Write a clear description for this dish…' />
+          <Input.TextArea
+            autoSize={{ minRows: 3 }}
+            placeholder='Write a clear description for this dish…'
+          />
         </Form.Item>
 
         <Form.Item label='Images'>
-          <Space direction='vertical' style={{ width: '100%' }}>
-            <Upload
-              listType='picture-card'
-              fileList={fileList}
-              beforeUpload={() => false} // prevent auto upload – we send all in one PATCH
-              multiple
-              onChange={({ fileList: fl }) => setFileList(fl)}
-              onRemove={(file) => {
-                // If removing an existing URL, just let it drop from the list
-                setFileList(prev => prev.filter(f => f.uid !== file.uid));
-                return true;
-              }}
-            >
-              <div>
-                <PlusOutlined />
-                <div style={{ marginTop: 8 }}>Upload</div>
+          <Space direction='vertical' style={{ width: '100%' }} size={12}>
+            {/* Primary display (first 'menu') */}
+            <div>
+              <Text strong>Display image (first “menu”)</Text>
+              <div
+                style={{
+                  width: 160,
+                  height: 120,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: '#f5f5f5',
+                  marginTop: 6
+                }}
+              >
+                {primaryUrl
+                  ? (
+                    <img
+                      src={primaryUrl}
+                      alt='primary menu'
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                    )
+                  : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: '#999'
+                      }}
+                    >
+                      No image
+                    </div>
+                    )}
               </div>
-            </Upload>
+            </div>
 
-            {/* Large preview row (optional) */}
-            {fileList.length === 0 && (
-              <Image
-                width={160}
-                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120'><rect width='160' height='120' fill='%23f5f5f5'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-family='Arial' font-size='12'>No image</text></svg>"
-                preview={false}
-              />
-            )}
+            {/* Open crop/variant modal */}
+            <Button onClick={() => setManageOpen(true)}>Manage Images</Button>
+
+            {/* Current images (menu+promo only) */}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+                <Text strong style={{ flex: 1 }}>Current images</Text>
+                <Space>
+                  <Button
+                    icon={<LeftOutlined />}
+                    onClick={() => scrollStrip(-1)}
+                    size='small'
+                    disabled={visibleImages.length <= 5}
+                  />
+                  <Button
+                    icon={<RightOutlined />}
+                    onClick={() => scrollStrip(1)}
+                    size='small'
+                    disabled={visibleImages.length <= 5}
+                  />
+                </Space>
+              </div>
+
+              <div
+                ref={stripRef}
+                style={{
+                  width: '100%',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  whiteSpace: 'nowrap',
+                  paddingBottom: 6
+                }}
+              >
+                {visibleImages.map((im) => {
+                  const key = im.id || im.url;
+                  const isMenu = im.type === 'menu';
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'inline-block',
+                        width: 120,
+                        height: 90,
+                        marginRight: 10,
+                        position: 'relative',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: '#f5f5f5',
+                        verticalAlign: 'top'
+                      }}
+                    >
+                      <img
+                        src={im.url}
+                        alt={im.type}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+
+                      {/* type pill */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: 6,
+                          top: 6,
+                          background: isMenu ? 'rgba(24,144,255,.9)' : 'rgba(114,46,209,.9)',
+                          color: '#fff',
+                          fontSize: 11,
+                          lineHeight: '16px',
+                          padding: '0 6px',
+                          borderRadius: 12,
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {im.type}
+                      </div>
+
+                      {/* delete X */}
+                      <Popconfirm
+                        title='Remove this image (and its original)?'
+                        description='This removes all variants with the same upload (DB only).'
+                        onConfirm={() => removeFromDraft(im)}
+                      >
+                        <Tooltip title='Remove from this item'>
+                          <CloseCircleFilled
+                            style={{
+                              position: 'absolute',
+                              right: 6,
+                              top: 6,
+                              fontSize: 18,
+                              color: 'red',
+                              cursor: 'pointer',
+                              textShadow: '0 0 2px rgba(255,255,255,.9)'
+                            }}
+                          />
+                        </Tooltip>
+                      </Popconfirm>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </Space>
         </Form.Item>
       </Form>
+
+      {/* Cropping/variant modal */}
+      <ManageImagesModal
+        open={manageOpen}
+        restaurantId={item?.restaurantId}
+        menuItemId={item?._id}
+        onClose={() => setManageOpen(false)}
+        onFinished={(updatedItem) => {
+          if (updatedItem?.images) setImagesDraft(coerceImages(updatedItem.images));
+          setManageOpen(false);
+        }}
+      />
     </Modal>
   );
 }
