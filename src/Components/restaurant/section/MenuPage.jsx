@@ -153,7 +153,7 @@ export default function MenuPage () {
       });
     }
     // Sort panels alphabetically by key (category label)
-    panels.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+    panels.sort((a, b) => String(b.key).localeCompare(String(a.key)));
     return panels;
   }, [sorted]);
 
