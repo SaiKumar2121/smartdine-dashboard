@@ -68,88 +68,92 @@ export default function MenuPage () {
         ),
         children: (
           <Space direction='vertical' size={16} style={{ width: '100%' }}>
-            {list.map(item => (
-              <Card key={item._id} bodyStyle={{ padding: 16 }} style={{ borderRadius: 10 }}>
-                <Row gutter={16} align='middle'>
-                  <Col xs={24} md={18}>
-                    <Space size='small' style={{ marginBottom: 6, flexWrap: 'wrap' }}>
-                      {(item.tags || []).map((t, i) => <TagPill key={i} text={t} />)}
-                    </Space>
+            {list.map((item) => {
+              const thumb = getPrimaryMenuUrl(item.images);
+              return (
+                <Card key={item._id} bodyStyle={{ padding: 16 }} style={{ borderRadius: 10 }}>
+                  <Row gutter={16} align='middle'>
+                    <Col xs={24} md={18}>
+                      <Space size='small' style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+                        {(item.tags || []).map((t, i) => <TagPill key={i} text={t} />)}
+                      </Space>
 
-                    <Title level={4} style={{ margin: 0 }}>{item.name || 'Untitled item'}</Title>
+                      <Title level={4} style={{ margin: 0 }}>
+                        {item.name || 'Untitled item'}
+                      </Title>
 
-                    {item.description
-                      ? (
-                        <Paragraph
-                          type='secondary'
-                          style={{ marginTop: 6 }}
-                          ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
+                      {item.description
+                        ? (
+                          <Paragraph
+                            type='secondary'
+                            style={{ marginTop: 6 }}
+                            ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}
+                          >
+                            {item.description}
+                          </Paragraph>
+                          )
+                        : (
+                          <Text type='secondary'>No description provided.</Text>
+                          )}
+                    </Col>
+
+                    {/* RIGHT: image + Edit on far right */}
+                    <Col xs={24} md={6} style={{ display: 'flex' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                        <div
+                          style={{
+                            width: 140,
+                            height: 100,
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            background: '#f5f5f5',
+                            position: 'relative',
+                            marginRight: 4
+                          }}
                         >
-                          {item.description}
-                        </Paragraph>
-                        )
-                      : (
-                        <Text type='secondary'>No description provided.</Text>
-                        )}
-                  </Col>
+                          {thumb
+                            ? (
+                              <img
+                                src={thumb}
+                                alt={item.name || 'menu image'}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              />
+                              )
+                            : (
+                              <div
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  color: '#999'
+                                }}
+                              >
+                                No image
+                              </div>
+                              )}
+                        </div>
 
-                  {/* RIGHT: image + Edit on far right */}
-                  <Col xs={24} md={6} style={{ display: 'flex' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-                      <div
-                        style={{
-                          width: 140,
-                          height: 100,
-                          borderRadius: 8,
-                          overflow: 'hidden',
-                          background: '#f5f5f5',
-                          position: 'relative',
-                          marginRight: 4
-                        }}
-                      >
-                        {getPrimaryMenuUrl(item.images)
-                          ? (
-                            <img
-                              src={getPrimaryMenuUrl(item.images)}
-                              alt={item.name || 'menu image'}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                            />
-                            )
-                          : (
-                            <div
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                display: 'grid',
-                                placeItems: 'center',
-                                color: '#999'
-                              }}
-                            >
-                              No image
-                            </div>
-                            )}
+                        <Button
+                          size='large'
+                          type='primary'
+                          icon={<EditOutlined />}
+                          onClick={() => setEditing(item)}
+                        >
+                          Edit
+                        </Button>
                       </div>
-
-                      <Button
-                        size='large'
-                        type='primary'
-                        icon={<EditOutlined />}
-                        onClick={() => setEditing(item)}
-                        style={{ marginLeft: '20%' }}
-                      >
-                        Edit
-                      </Button>
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
-            ))}
+                    </Col>
+                  </Row>
+                </Card>
+              );
+            })}
           </Space>
         )
       });
     }
-    // Optional: sort category panels alphabetically
-    panels.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    // Sort panels alphabetically by key (category label)
+    panels.sort((a, b) => String(a.key).localeCompare(String(b.key)));
     return panels;
   }, [sorted]);
 
@@ -180,15 +184,14 @@ export default function MenuPage () {
         <>
           {(!data || data.length === 0)
             ? (
-
               <Empty description='No menu items yet' />
               )
             : (
               <Collapse
-                accordion={false} // set true if you want only one open at a time
+                accordion={false}
                 bordered={false}
                 items={collapseItems}
-                expandIconPosition='start' // keep arrow at the left
+                expandIconPosition='start'
                 defaultActiveKey={collapseItems.slice(0, 1).map(i => i.key)}
                 style={{ background: 'transparent' }}
               />
@@ -211,7 +214,6 @@ export default function MenuPage () {
             }}
             supportsMultipart={false}
           />
-
         </>
       )}
     </div>

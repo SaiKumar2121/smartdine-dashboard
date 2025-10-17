@@ -12,9 +12,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal, Button, Upload, Checkbox, Space, Typography,
-  Progress, Row, Col, message, Divider, Tooltip
+  Progress, Row, Col, message, Divider
 } from 'antd';
-import { UploadOutlined, LeftOutlined, RightOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { UploadOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import Cropper from 'react-easy-crop';
 
 const { Text } = Typography;
@@ -125,7 +125,7 @@ export default function ManageImagesModal ({
 
   // Variant toggles
   const [menuEnabled, setMenuEnabled] = useState(true);
-  const [promoEnabled, setPromoEnabled] = useState(false);
+  const [promoEnabled, setPromoEnabled] = useState(true);
 
   // Crop state (position+zoom)
   const [menuCrop, setMenuCrop] = useState({ x: 0, y: 0 }); // position
@@ -163,7 +163,7 @@ export default function ManageImagesModal ({
       setCurrentSrc(null);
 
       setMenuEnabled(true);
-      setPromoEnabled(false);
+      setPromoEnabled(true);
 
       setMenuCrop({ x: 0, y: 0 });
       setMenuZoom(1);
@@ -178,7 +178,6 @@ export default function ManageImagesModal ({
     }
   }, [open]);
 
-  // Select files
   const onPickChange = ({ fileList }) => {
     const fs = fileList.map((f) => f.originFileObj).filter(Boolean);
     setFiles(fs);
@@ -201,7 +200,6 @@ export default function ManageImagesModal ({
       setBusy(true);
       const file = files[currentIdx];
 
-      // One request per file with selected variants
       const json = await uploadFileWithVariants({
         restaurantId,
         menuItemId,
@@ -219,10 +217,8 @@ export default function ManageImagesModal ({
 
       message.success('Uploaded');
 
-      // Move to next file or finish
       if (currentIdx < files.length - 1) {
         setCurrentIdx(currentIdx + 1);
-        // reset per-file crop state for a clean start
         setMenuCrop({ x: 0, y: 0 });
         setMenuZoom(1);
         setMenuAreaPercent(null);
@@ -269,7 +265,6 @@ export default function ManageImagesModal ({
       title={headerTitle}
     >
       <Space direction='vertical' style={{ width: '100%' }} size={16}>
-        {/* 1) Pick files */}
         <Upload
           accept='image/*'
           multiple
@@ -283,61 +278,57 @@ export default function ManageImagesModal ({
           </Button>
         </Upload>
 
-        {/* 2) Variant toggles */}
-        <Space align='center' size={24}>
-          <Checkbox
-            checked={menuEnabled}
-            disabled={!files.length || busy}
-            onChange={(e) => setMenuEnabled(e.target.checked)}
-          >
-            Menu (1:1)
-          </Checkbox>
-          <Checkbox
-            checked={promoEnabled}
-            disabled={!files.length || busy}
-            onChange={(e) => setPromoEnabled(e.target.checked)}
-          >
-            Promo (9:16)
-          </Checkbox>
-          <Tooltip title='Menu is used on item cards; Promo on promotion pages.'>
-            <InfoCircleOutlined />
-          </Tooltip>
-        </Space>
-
         {/* 3) Croppers */}
         {files.length > 0 && (
           <Row gutter={16}>
             {/* Menu cropper */}
-            <Col span={menuEnabled && promoEnabled ? 12 : 24}>
+            <Col span={12}>
               <div style={{ display: 'grid', gap: 8 }}>
-                <Text strong>Menu (1:1)</Text>
-                <div
-                  style={{
-                    position: 'relative',
-                    width: '100%',
-                    height: 420,
-                    background: '#111',
-                    borderRadius: 8,
-                    overflow: 'hidden'
-                  }}
-                >
-                  {menuEnabled && currentSrc && (
-                    <Cropper
-                      image={currentSrc}
-                      crop={menuCrop} // {x,y}
-                      zoom={menuZoom}
-                      aspect={1 / 1}
-                      onCropChange={setMenuCrop}
-                      onZoomChange={setMenuZoom}
-                      onCropComplete={(area, areaPx) => setMenuAreaPercent(area)}
-                      restrictPosition
-                      zoomSpeed={0.8}
-                      minZoom={1}
-                      maxZoom={6}
-                      showGrid={false}
-                    />
+                {/* checkbox INSIDE panel */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Checkbox
+                    checked={menuEnabled}
+                    onChange={(e) => setMenuEnabled(e.target.checked)}
+                    disabled={!files.length || busy}
+                  >
+                    Menu (1:1)
+                  </Checkbox>
+                </div>
+
+                <div style={{ position: 'relative', width: '100%', height: 420, background: '#111', borderRadius: 8, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      filter: menuEnabled ? 'none' : 'grayscale(1) blur(2px) opacity(0.6)',
+                      pointerEvents: menuEnabled ? 'auto' : 'none'
+                    }}
+                  >
+                    {currentSrc && (
+                      <Cropper
+                        image={currentSrc}
+                        crop={menuCrop}
+                        zoom={menuZoom}
+                        aspect={1 / 1}
+                        onCropChange={setMenuCrop}
+                        onZoomChange={setMenuZoom}
+                        onCropComplete={(area /* percent */) => setMenuAreaPercent(area)}
+                        restrictPosition
+                        zoomSpeed={0.8}
+                        minZoom={1}
+                        maxZoom={6}
+                        showGrid={false}
+                      />
+                    )}
+                  </div>
+
+                  {!menuEnabled && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#ccc', fontSize: 14 }}>
+                      Disabled
+                    </div>
                   )}
                 </div>
+
                 <input
                   type='range'
                   min={1}
@@ -350,20 +341,36 @@ export default function ManageImagesModal ({
               </div>
             </Col>
 
-            {/* Promo cropper */}
-            {promoEnabled && (
-              <Col span={menuEnabled && promoEnabled ? 12 : 24}>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <Text strong>Promo (9:16)</Text>
+            <Col span={12}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Checkbox
+                    checked={promoEnabled}
+                    onChange={(e) => setPromoEnabled(e.target.checked)}
+                    disabled={!files.length || busy}
+                  >
+                    Promo (9:16)
+                  </Checkbox>
+                </div>
+
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: 420,
+                    background: '#111',
+                    borderRadius: 8,
+                    overflow: 'hidden'
+                  }}
+                >
                   <div
                     style={{
-                      position: 'relative',
                       width: '100%',
-                      height: 420,
-                      background: '#111',
-                      borderRadius: 8,
-                      overflow: 'hidden'
+                      height: '100%',
+                      filter: promoEnabled ? 'none' : 'grayscale(1) blur(2px) opacity(0.6)',
+                      pointerEvents: promoEnabled ? 'auto' : 'none'
                     }}
+                    aria-disabled={!promoEnabled}
                   >
                     {currentSrc && (
                       <Cropper
@@ -373,7 +380,7 @@ export default function ManageImagesModal ({
                         aspect={9 / 16}
                         onCropChange={setPromoCrop}
                         onZoomChange={setPromoZoom}
-                        onCropComplete={(area, areaPx) => setPromoAreaPercent(area)}
+                        onCropComplete={(area) => setPromoAreaPercent(area)}
                         restrictPosition
                         zoomSpeed={0.8}
                         minZoom={1}
@@ -382,18 +389,34 @@ export default function ManageImagesModal ({
                       />
                     )}
                   </div>
-                  <input
-                    type='range'
-                    min={1}
-                    max={6}
-                    step={0.01}
-                    value={promoZoom}
-                    disabled={!promoEnabled || busy}
-                    onChange={(e) => setPromoZoom(Number(e.target.value))}
-                  />
+
+                  {!promoEnabled && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: '#ccc',
+                        fontSize: 14
+                      }}
+                    >
+                      Disabled
+                    </div>
+                  )}
                 </div>
-              </Col>
-            )}
+
+                <input
+                  type='range'
+                  min={1}
+                  max={6}
+                  step={0.01}
+                  value={promoZoom}
+                  disabled={!promoEnabled || busy}
+                  onChange={(e) => setPromoZoom(Number(e.target.value))}
+                />
+              </div>
+            </Col>
           </Row>
         )}
 

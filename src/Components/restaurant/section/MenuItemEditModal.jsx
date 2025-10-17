@@ -15,7 +15,7 @@ import { coerceImages, getPrimaryMenuUrl } from '../../../utils/images';
 
 const { Text } = Typography;
 
-// local helper: dedupe by a computed key
+// Small helper to dedupe items by a computed key
 const uniqueBy = (arr, getKey) => {
   const seen = new Set();
   return arr.filter((x) => {
@@ -35,11 +35,11 @@ export default function MenuItemEditModal ({
 }) {
   const [form] = Form.useForm();
 
-  // Always normalize what we get from the item
+  // Normalize whatever comes from API (now only menu/promo objects)
   const [imagesDraft, setImagesDraft] = useState(coerceImages(item?.images ?? []));
   const [manageOpen, setManageOpen] = useState(false);
 
-  // Only show menu|promo; hide original
+  // Visible thumbnails: menu + promo (deduped)
   const visibleImages = uniqueBy(
     coerceImages(imagesDraft).filter(im => im.type === 'menu' || im.type === 'promo'),
     im => `${im.type}:${im.id || im.url}`
@@ -57,27 +57,20 @@ export default function MenuItemEditModal ({
     form.setFieldsValue({ description: item?.description ?? '' });
     setImagesDraft(coerceImages(item?.images ?? []));
   };
+
   useEffect(() => {
     if (open) resetFromItem();
   }, [open, item?._id]);
 
-  // Primary display (first 'menu')
+  // Primary display (prefer menu -> promo)
   const primaryUrl = getPrimaryMenuUrl(imagesDraft);
 
-  // Delete: remove this variant AND its paired original via uuid
+  // Delete one variant from the draft (DB-only until Save)
   const removeFromDraft = (target) => {
-    const tUuid = target.uuid;
-    const tKey = target.id || target.url;
-
-    setImagesDraft(prev => {
-      const list = coerceImages(prev);
-      if (tUuid) {
-        // remove ALL records with same uuid (original/menu/promo)
-        return list.filter(x => x.uuid !== tUuid);
-      }
-      // legacy fallback (string-only items)
-      return list.filter(x => (x.id || x.url) !== tKey);
-    });
+    const key = target.id || target.url;
+    setImagesDraft(prev =>
+      coerceImages(prev).filter(x => (x.id || x.url) !== key)
+    );
   };
 
   return (
@@ -88,16 +81,17 @@ export default function MenuItemEditModal ({
       okText='Save changes'
       confirmLoading={saving}
       onOk={() => {
-        form.validateFields().then((values) => {
-          // Keep uuid so backend can pair deletions/uploads
-          const normalized = coerceImages(imagesDraft).map(({ id, uuid, type, url }) => ({
-            id, uuid, type, url
-          }));
-          onSave({
-            description: values.description ?? '',
-            images: normalized
-          });
-        }).catch(() => {});
+        form.validateFields()
+          .then((values) => {
+            const normalized = coerceImages(imagesDraft).map(({ id, type, url }) => ({
+              id, type, url
+            }));
+            onSave({
+              description: values.description ?? '',
+              images: normalized
+            });
+          })
+          .catch(() => {});
       }}
       width={760}
     >
@@ -111,7 +105,7 @@ export default function MenuItemEditModal ({
 
         <Form.Item label='Images'>
           <Space direction='vertical' style={{ width: '100%' }} size={12}>
-            {/* Primary display (first 'menu') */}
+            {/* Primary display (first menu -> promo) */}
             <div>
               <Text strong>Display image (first “menu”)</Text>
               <div
@@ -151,7 +145,7 @@ export default function MenuItemEditModal ({
             {/* Open crop/variant modal */}
             <Button onClick={() => setManageOpen(true)}>Manage Images</Button>
 
-            {/* Current images (menu+promo only) */}
+            {/* Current images (menu + promo) */}
             <div style={{ marginTop: 8 }}>
               <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center' }}>
                 <Text strong style={{ flex: 1 }}>Current images</Text>
@@ -181,71 +175,80 @@ export default function MenuItemEditModal ({
                   paddingBottom: 6
                 }}
               >
-                {visibleImages.map((im) => {
-                  const key = im.id || im.url;
-                  const isMenu = im.type === 'menu';
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        display: 'inline-block',
-                        width: 120,
-                        height: 90,
-                        marginRight: 10,
-                        position: 'relative',
-                        borderRadius: 8,
-                        overflow: 'hidden',
-                        background: '#f5f5f5',
-                        verticalAlign: 'top'
-                      }}
-                    >
-                      <img
-                        src={im.url}
-                        alt={im.type}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      />
+                {visibleImages.length === 0
+                  ? (
 
-                      {/* type pill */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: 6,
-                          top: 6,
-                          background: isMenu ? 'rgba(24,144,255,.9)' : 'rgba(114,46,209,.9)',
-                          color: '#fff',
-                          fontSize: 11,
-                          lineHeight: '16px',
-                          padding: '0 6px',
-                          borderRadius: 12,
-                          textTransform: 'capitalize'
-                        }}
-                      >
-                        {im.type}
-                      </div>
-
-                      {/* delete X */}
-                      <Popconfirm
-                        title='Remove this image (and its original)?'
-                        description='This removes all variants with the same upload (DB only).'
-                        onConfirm={() => removeFromDraft(im)}
-                      >
-                        <Tooltip title='Remove from this item'>
-                          <CloseCircleFilled
-                            style={{
-                              position: 'absolute',
-                              right: 6,
-                              top: 6,
-                              fontSize: 18,
-                              color: 'red',
-                              cursor: 'pointer',
-                              textShadow: '0 0 2px rgba(255,255,255,.9)'
-                            }}
-                          />
-                        </Tooltip>
-                      </Popconfirm>
+                    <div style={{ color: '#999', padding: '8px 0' }}>
+                      No menu/promo images yet. Click <b>Manage Images</b> to add.
                     </div>
-                  );
-                })}
+                    )
+                  : (
+                      visibleImages.map((im) => {
+                        const key = im.id || im.url;
+                        const isMenu = im.type === 'menu';
+                        return (
+                          <div
+                            key={key}
+                            style={{
+                              display: 'inline-block',
+                              width: 120,
+                              height: 90,
+                              marginRight: 10,
+                              position: 'relative',
+                              borderRadius: 8,
+                              overflow: 'hidden',
+                              background: '#f5f5f5',
+                              verticalAlign: 'top'
+                            }}
+                          >
+                            <img
+                              src={im.url}
+                              alt={im.type}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            />
+
+                            {/* type pill */}
+                            <div
+                              style={{
+                                position: 'absolute',
+                                left: 6,
+                                top: 6,
+                                background: isMenu ? 'rgba(24,144,255,.9)' : 'rgba(114,46,209,.9)',
+                                color: '#fff',
+                                fontSize: 11,
+                                lineHeight: '16px',
+                                padding: '0 6px',
+                                borderRadius: 12,
+                                textTransform: 'capitalize'
+                              }}
+                            >
+                              {im.type}
+                            </div>
+
+                            {/* delete X (DB-only until Save) */}
+                            <Popconfirm
+                              title='Remove this image from the item?'
+                              description='This will remove this variant from MongoDB (S3 file stays).'
+                              onConfirm={() => removeFromDraft(im)}
+                            >
+                              <Tooltip title='Remove from this item'>
+                                <CloseCircleFilled
+                                  style={{
+                                    position: 'absolute',
+                                    right: 6,
+                                    top: 6,
+                                    fontSize: 18,
+                                    color: 'red',
+                                    cursor: 'pointer',
+                                    textShadow: '0 0 2px rgba(255,255,255,.9)'
+                                  }}
+                                />
+                              </Tooltip>
+                            </Popconfirm>
+                          </div>
+                        );
+                      })
+                    )}
               </div>
             </div>
           </Space>
