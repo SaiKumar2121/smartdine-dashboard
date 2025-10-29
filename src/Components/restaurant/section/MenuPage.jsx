@@ -38,21 +38,24 @@ export default function MenuPage () {
   const { state } = useLocation();
   const restaurant = state?.restaurant;
 
+  // fetch ALL items (no pagination UI)
   const { data, isLoading, isError, error, refetch, isFetching } = useMenuItems(rid);
   const { mutateAsync: saveItem, isPending: saving } = useUpdateMenuItem(rid);
 
   const [editing, setEditing] = useState(null);
 
+  const items = data?.items ?? [];
+
   // Sort by displayOrder then by name (like POS)
   const sorted = useMemo(() => {
-    const list = data || [];
+    const list = items || [];
     return [...list].sort((a, b) => {
       const ao = a.displayOrder ?? 100000;
       const bo = b.displayOrder ?? 100000;
       if (ao !== bo) return ao - bo;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [data]);
+  }, [items]);
 
   // Build Collapse panels from category groups
   const collapseItems = useMemo(() => {
@@ -182,10 +185,8 @@ export default function MenuPage () {
       {/* Content */}
       {!isLoading && !isError && (
         <>
-          {(!data || data.length === 0)
-            ? (
-              <Empty description='No menu items yet' />
-              )
+          {items.length === 0
+            ? <Empty description='No menu items yet' />
             : (
               <Collapse
                 accordion={false}
@@ -195,19 +196,20 @@ export default function MenuPage () {
                 defaultActiveKey={collapseItems.slice(0, 1).map(i => i.key)}
                 style={{ background: 'transparent' }}
               />
-              )}
+              )
+          }
 
           <MenuItemEditModal
             open={!!editing}
             item={{ ...editing, restaurantId: rid }}
             saving={saving}
             onCancel={() => setEditing(null)}
-            onSave={async (data) => {
+            onSave={async (payload) => {
               try {
-                await saveItem({ itemId: editing._id, data });
+                await saveItem({ itemId: editing._id, data: payload });
                 message.success('Menu item updated');
                 setEditing(null);
-                refetch(); // refresh list so primary image updates
+                refetch(); // refresh full list
               } catch (e) {
                 message.error(e?.response?.data?.message || e.message || 'Failed to update');
               }
