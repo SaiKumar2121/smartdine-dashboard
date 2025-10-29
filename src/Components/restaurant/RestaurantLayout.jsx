@@ -12,8 +12,6 @@ export default function RestaurantLayout () {
   const restaurant = state?.restaurant;
 
   const [collapsed, setCollapsed] = useState(false);
-
-  // keep state object stable so links preserve restaurant across sections
   const navState = useMemo(() => (restaurant ? { restaurant } : undefined), [restaurant]);
 
   return (
@@ -25,7 +23,15 @@ export default function RestaurantLayout () {
         collapsedWidth={72}
         width={220}
         trigger={null}
-        style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}
+        style={{
+          background: '#fff',
+          borderRight: '1px solid #f0f0f0',
+          // 👇 make sidebar sticky & self-scrolling when needed
+          position: 'sticky',
+          top: 0,
+          height: '100dvh',
+          overflow: 'hidden' // inner menu will manage its own scrolling
+        }}
       >
         <SidebarNav
           rid={rid}
@@ -37,7 +43,10 @@ export default function RestaurantLayout () {
       </Sider>
 
       <Layout style={{ background: '#f6f7f9' }}>
-        <Topbar />
+        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f6f7f9' }}>
+          <Topbar />
+        </div>
+
         <Content style={{ padding: 16 }}>
           <Outlet />
         </Content>
