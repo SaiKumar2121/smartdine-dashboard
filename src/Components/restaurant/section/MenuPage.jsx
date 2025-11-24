@@ -4,7 +4,7 @@ import {
   Skeleton, Empty, message
 } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useMenuItems, useUpdateMenuItem } from '../../../hooks/useMenuItems';
 import MenuItemEditModal from './MenuItemEditModal';
 import { getPrimaryMenuUrl } from '../../../utils/images';
@@ -35,8 +35,6 @@ function groupByCategory (items = []) {
 
 export default function MenuPage () {
   const { rid } = useParams();
-  const { state } = useLocation();
-  const restaurant = state?.restaurant;
 
   // fetch ALL items (no pagination UI)
   const { data, isLoading, isError, error, refetch, isFetching } = useMenuItems(rid);

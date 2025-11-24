@@ -1,6 +1,34 @@
 // api/menuItems.js
 import api from './apiClient';
 
+const normalizeCombos = (raw) => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry, idx) => {
+      if (entry == null) return null;
+      const id =
+        typeof entry === 'string' || typeof entry === 'number'
+          ? String(entry)
+          : entry?._id ??
+            entry?.id ??
+            entry?.itemId ??
+            entry?.menuItemId ??
+            entry?.comboItemId ??
+            null;
+      if (!id) return null;
+      const quantityRaw = entry.quantity ?? entry.qty;
+      const rankRaw = entry.smartDineRank ?? entry.rank ?? entry.order ?? entry.priority;
+      const quantity = quantityRaw == null ? null : (Number(quantityRaw) || 1);
+      const smartDineRank = rankRaw == null ? null : (Number(rankRaw) || idx + 1);
+      return {
+        id: String(id),
+        quantity,
+        smartDineRank
+      };
+    })
+    .filter(Boolean);
+};
+
 const normalizeItem = (x = {}) => {
   const id = x._id || x.id;
   const name = x.name ?? '';
@@ -22,6 +50,9 @@ const normalizeItem = (x = {}) => {
   const posCategoryId = x.posCategoryId ?? null;
   const posItemId = x.posItemId ?? null;
   const status = x.status ?? 'active';
+  const comboItems = normalizeCombos(
+    x.comboItems ?? x.combos ?? x.comboIds ?? x.upsellItems ?? x.upsellCombos ?? []
+  );
 
   return {
     _id: id,
@@ -36,6 +67,7 @@ const normalizeItem = (x = {}) => {
     posItemId,
     status,
     displayOrder: x.displayOrder ?? 0,
+    comboItems
   };
 };
 
@@ -61,13 +93,11 @@ export async function getAllMenuItemsByRestaurant(restaurantId, params = {}) {
   let page = 1;
 
   const out = [];
-  let totalItems = 0;
   let totalPages = 1;
 
   // first page
   let { items, pagination } = await getMenuItemsByRestaurantPaged(restaurantId, { ...params, page, limit });
   out.push(...items);
-  totalItems = Number(pagination.totalItems || items.length);
   totalPages = Number(pagination.totalPages || 1);
 
   // remaining pages (if any)

@@ -88,16 +88,6 @@ async function uploadFileWithVariants ({
   return res.json();
 }
 
-// Fetch latest item (if you want to be 100% accurate at the end)
-async function fetchItem ({ restaurantId, menuItemId, token }) {
-  const url = `${API_BASE_URL}/restaurants/${restaurantId}/menu-items/${menuItemId}`;
-  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error('Failed to fetch updated item');
-  const json = await res.json();
-  return json?.data?.menuItem || json?.menuItem || json?.data || json;
-}
-
 // ---------- component ----------
 export default function ManageImagesModal ({
   open,
@@ -127,7 +117,6 @@ export default function ManageImagesModal ({
 
   // Busy/progress
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   // Load preview when index/file changes
   useEffect(() => {
@@ -163,7 +152,6 @@ export default function ManageImagesModal ({
       setPromoAreaPercent(null);
 
       setBusy(false);
-      setProgress({ done: 0, total: 0 });
     }
   }, [open]);
 

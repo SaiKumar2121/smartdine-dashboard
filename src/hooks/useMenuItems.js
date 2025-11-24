@@ -23,12 +23,25 @@ export function useUpdateMenuItem (restaurantId) {
       await qc.cancelQueries({ queryKey: ['menu-items-all', restaurantId] });
       const previous = qc.getQueryData(['menu-items-all', restaurantId]);
 
-      if (data && (data.description != null || data.name != null)) {
+      if (data && (data.description != null || data.name != null || data.comboItems != null || data.combos != null)) {
         qc.setQueryData(['menu-items-all', restaurantId], (old) => {
           if (!old?.items) return old;
+          const comboItems =
+            data.comboItems ??
+            data.comboIds ??
+            data.upsellItems ??
+            (Array.isArray(data.combos) ? data.combos : undefined);
+
           return {
             ...old,
-            items: old.items.map(it => (it._id === itemId ? { ...it, ...data } : it))
+            items: old.items.map((it) => {
+              if (it._id !== itemId) return it;
+              return {
+                ...it,
+                ...data,
+                ...(comboItems ? { comboItems } : {})
+              };
+            })
           };
         });
       }
