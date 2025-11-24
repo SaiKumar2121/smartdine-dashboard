@@ -1,14 +1,3 @@
-/* eslint-env browser */
-/* global FileReader, Image */
-
-// src/Components/restaurant/section/ManageImagesModal.jsx
-// Flow:
-// 1) Pick 1..N files
-// 2) For each file, admin selects Menu (1:1) and/or Promo (9:16)
-// 3) We capture crop areas via react-easy-crop (percent)
-// 4) POST one FormData per file with original file + variants[...] pixel coords
-// 5) On last file, fetch/return updated item via onFinished(updatedItem)
-
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal, Button, Upload, Checkbox, Space, Typography,
