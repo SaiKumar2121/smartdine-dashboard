@@ -11,7 +11,7 @@ import { getPrimaryMenuUrl } from '../../../utils/images';
 
 const { Title, Text, Paragraph } = Typography;
 
-function TagPill ({ text }) {
+function TagPill({ text }) {
   const raw = String(text || '');
   const t = raw.toLowerCase().trim();
   const isNonVeg =
@@ -22,8 +22,16 @@ function TagPill ({ text }) {
   return <Tag color={color} style={{ borderRadius: 12, padding: '0 8px' }}>{raw}</Tag>;
 }
 
+function PromotedTag() {
+  return (
+    <Tag color="green" style={{ borderRadius: 12, padding: '0 8px' }}>
+      Promoted
+    </Tag>
+  );
+}
+
 // Helper: group items by POS category label
-function groupByCategory (items = []) {
+function groupByCategory(items = []) {
   const map = new Map();
   for (const it of items) {
     const label = it.category || 'Uncategorized';
@@ -33,7 +41,7 @@ function groupByCategory (items = []) {
   return map;
 }
 
-export default function MenuPage () {
+export default function MenuPage() {
   const { rid } = useParams();
 
   // fetch ALL items (no pagination UI)
@@ -77,6 +85,9 @@ export default function MenuPage () {
                     <Col xs={24} md={18}>
                       <Space size='small' style={{ marginBottom: 6, flexWrap: 'wrap' }}>
                         {(item.tags || []).map((t, i) => <TagPill key={i} text={t} />)}
+                        {(item.isRestaurantPromoted || item.isRestaurantRecomended || item.isRestaurantRecommended || item.isRecomended) && (
+                          <PromotedTag />
+                        )}
                       </Space>
 
                       <Title level={4} style={{ margin: 0 }}>
@@ -92,10 +103,10 @@ export default function MenuPage () {
                           >
                             {item.description}
                           </Paragraph>
-                          )
+                        )
                         : (
                           <Text type='secondary'>No description provided.</Text>
-                          )}
+                        )}
                     </Col>
 
                     {/* RIGHT: image + Edit on far right */}
@@ -119,7 +130,7 @@ export default function MenuPage () {
                                 alt={item.name || 'menu image'}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
-                              )
+                            )
                             : (
                               <div
                                 style={{
@@ -132,7 +143,7 @@ export default function MenuPage () {
                               >
                                 No image
                               </div>
-                              )}
+                            )}
                         </div>
 
                         <Button
@@ -194,12 +205,13 @@ export default function MenuPage () {
                 defaultActiveKey={collapseItems.slice(0, 1).map(i => i.key)}
                 style={{ background: 'transparent' }}
               />
-              )
+            )
           }
 
           <MenuItemEditModal
             open={!!editing}
             item={{ ...editing, restaurantId: rid }}
+            categoryItems={items.filter(i => i.category === editing?.category)}
             saving={saving}
             onCancel={() => setEditing(null)}
             onSave={async (payload) => {

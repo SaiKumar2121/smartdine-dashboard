@@ -7,7 +7,9 @@ import {
   Button,
   Typography,
   Popconfirm,
-  Tooltip
+  message,
+  Tooltip,
+  Checkbox
 } from 'antd';
 import { CloseCircleFilled, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import ManageImagesModal from './ManageImagesModal';
@@ -26,18 +28,26 @@ const uniqueBy = (arr, getKey) => {
   });
 };
 
-export default function MenuItemEditModal ({
+export default function MenuItemEditModal({
   open,
   item,
   onCancel,
   onSave,
-  saving
+  saving,
+  categoryItems
 }) {
   const [form] = Form.useForm();
 
   // Normalize whatever comes from API (now only menu/promo objects)
   const [imagesDraft, setImagesDraft] = useState(coerceImages(item?.images ?? []));
   const [manageOpen, setManageOpen] = useState(false);
+  const [isRecommended, setIsRecommended] = useState(Boolean(
+    item?.isRestaurantPromoted ??
+    item?.isRestaurantRecomended ??
+    item?.isRestaurantRecommended ??
+    item?.isRecomended ??
+    false
+  ));
 
   // Visible thumbnails: menu + promo (deduped)
   const visibleImages = uniqueBy(
@@ -56,6 +66,13 @@ export default function MenuItemEditModal ({
   const resetFromItem = () => {
     form.setFieldsValue({ description: item?.description ?? '' });
     setImagesDraft(coerceImages(item?.images ?? []));
+    setIsRecommended(Boolean(
+      item?.isRestaurantPromoted ??
+      item?.isRestaurantRecomended ??
+      item?.isRestaurantRecommended ??
+      item?.isRecomended ??
+      false
+    ));
   };
 
   useEffect(() => {
@@ -75,7 +92,32 @@ export default function MenuItemEditModal ({
 
   return (
     <Modal
-      title={item?.name ? `Edit · ${item.name}` : 'Edit menu item'}
+      title={(
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span>{item?.name ? `Edit · ${item.name}` : 'Edit menu item'}</span>
+          <Checkbox
+            checked={isRecommended}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              if (checked) {
+                const currentId = item?._id;
+                const promotedCount = (categoryItems || []).filter(i =>
+                  (i._id !== currentId) &&
+                  (i.isRestaurantPromoted || i.isRestaurantRecomended || i.isRestaurantRecommended || i.isRecomended)
+                ).length;
+
+                if (promotedCount >= 2) {
+                  message.warning("Can't promote more than 2 items. Unselect any one.");
+                  return;
+                }
+              }
+              setIsRecommended(checked);
+            }}
+          >
+            Recomend this item
+          </Checkbox>
+        </div>
+      )}
       open={open}
       onCancel={onCancel}
       okText='Save changes'
@@ -86,12 +128,26 @@ export default function MenuItemEditModal ({
             const normalized = coerceImages(imagesDraft).map(({ id, type, url }) => ({
               id, type, url
             }));
-            onSave({
+
+            const original = coerceImages(item?.images ?? []).map(({ id, type, url }) => ({
+              id, type, url
+            }));
+
+            const imagesChanged = JSON.stringify(normalized) !== JSON.stringify(original);
+
+            const payload = {
               description: values.description ?? '',
-              images: normalized
-            });
+              isRestaurantRecommended: Boolean(isRecommended),
+              isRestaurantRecomended: Boolean(isRecommended)
+            };
+
+            if (imagesChanged) {
+              payload.images = normalized;
+            }
+
+            onSave(payload);
           })
-          .catch(() => {});
+          .catch(() => { });
       }}
       width={760}
     >
@@ -125,7 +181,7 @@ export default function MenuItemEditModal ({
                       alt='primary menu'
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
-                    )
+                  )
                   : (
                     <div
                       style={{
@@ -138,7 +194,7 @@ export default function MenuItemEditModal ({
                     >
                       No image
                     </div>
-                    )}
+                  )}
               </div>
             </div>
 
@@ -181,74 +237,74 @@ export default function MenuItemEditModal ({
                     <div style={{ color: '#999', padding: '8px 0' }}>
                       No menu/promo images yet. Click <b>Manage Images</b> to add.
                     </div>
-                    )
+                  )
                   : (
-                      visibleImages.map((im) => {
-                        const key = im.id || im.url;
-                        const isMenu = im.type === 'menu';
-                        return (
+                    visibleImages.map((im) => {
+                      const key = im.id || im.url;
+                      const isMenu = im.type === 'menu';
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            display: 'inline-block',
+                            width: 120,
+                            height: 90,
+                            marginRight: 10,
+                            position: 'relative',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                            background: '#f5f5f5',
+                            verticalAlign: 'top'
+                          }}
+                        >
+                          <img
+                            src={im.url}
+                            alt={im.type}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+
+                          {/* type pill */}
                           <div
-                            key={key}
                             style={{
-                              display: 'inline-block',
-                              width: 120,
-                              height: 90,
-                              marginRight: 10,
-                              position: 'relative',
-                              borderRadius: 8,
-                              overflow: 'hidden',
-                              background: '#f5f5f5',
-                              verticalAlign: 'top'
+                              position: 'absolute',
+                              left: 6,
+                              top: 6,
+                              background: isMenu ? 'rgba(24,144,255,.9)' : 'rgba(114,46,209,.9)',
+                              color: '#fff',
+                              fontSize: 11,
+                              lineHeight: '16px',
+                              padding: '0 6px',
+                              borderRadius: 12,
+                              textTransform: 'capitalize'
                             }}
                           >
-                            <img
-                              src={im.url}
-                              alt={im.type}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                            />
-
-                            {/* type pill */}
-                            <div
-                              style={{
-                                position: 'absolute',
-                                left: 6,
-                                top: 6,
-                                background: isMenu ? 'rgba(24,144,255,.9)' : 'rgba(114,46,209,.9)',
-                                color: '#fff',
-                                fontSize: 11,
-                                lineHeight: '16px',
-                                padding: '0 6px',
-                                borderRadius: 12,
-                                textTransform: 'capitalize'
-                              }}
-                            >
-                              {im.type}
-                            </div>
-
-                            {/* delete X (DB-only until Save) */}
-                            <Popconfirm
-                              title='Remove this image from the item?'
-                              description='This will remove this variant from MongoDB (S3 file stays).'
-                              onConfirm={() => removeFromDraft(im)}
-                            >
-                              <Tooltip title='Remove from this item'>
-                                <CloseCircleFilled
-                                  style={{
-                                    position: 'absolute',
-                                    right: 6,
-                                    top: 6,
-                                    fontSize: 18,
-                                    color: 'red',
-                                    cursor: 'pointer',
-                                    textShadow: '0 0 2px rgba(255,255,255,.9)'
-                                  }}
-                                />
-                              </Tooltip>
-                            </Popconfirm>
+                            {im.type}
                           </div>
-                        );
-                      })
-                    )}
+
+                          {/* delete X (DB-only until Save) */}
+                          <Popconfirm
+                            title='Remove this image from the item?'
+                            description='This will remove this variant from MongoDB (S3 file stays).'
+                            onConfirm={() => removeFromDraft(im)}
+                          >
+                            <Tooltip title='Remove from this item'>
+                              <CloseCircleFilled
+                                style={{
+                                  position: 'absolute',
+                                  right: 6,
+                                  top: 6,
+                                  fontSize: 18,
+                                  color: 'red',
+                                  cursor: 'pointer',
+                                  textShadow: '0 0 2px rgba(255,255,255,.9)'
+                                }}
+                              />
+                            </Tooltip>
+                          </Popconfirm>
+                        </div>
+                      );
+                    })
+                  )}
               </div>
             </div>
           </Space>

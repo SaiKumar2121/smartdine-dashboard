@@ -50,6 +50,15 @@ const normalizeItem = (x = {}) => {
   const posCategoryId = x.posCategoryId ?? null;
   const posItemId = x.posItemId ?? null;
   const status = x.status ?? 'active';
+  const isRestaurantRecommended = !!(
+    x.isRestaurantRecommended ??   // new name (if backend adds later)
+    x.isRecommended ??             // 🔥 this is what backend sends now
+    x.isRestaurantRecomended ??
+    x.isRestaurantPromoted ??
+    x.isRecomended ??
+    false
+  );
+
   const comboItems = normalizeCombos(
     x.comboItems ?? x.combos ?? x.comboIds ?? x.upsellItems ?? x.upsellCombos ?? []
   );
@@ -67,7 +76,9 @@ const normalizeItem = (x = {}) => {
     posItemId,
     status,
     displayOrder: x.displayOrder ?? 0,
-    comboItems
+    comboItems,
+    isRestaurantRecommended,
+    isRecomended: isRestaurantRecommended
   };
 };
 
@@ -113,9 +124,29 @@ export async function getAllMenuItemsByRestaurant(restaurantId, params = {}) {
 
 export async function updateMenuItem (restaurantId, itemId, payload) {
   const url = `/restaurants/${restaurantId}/menu-items/${itemId}`;
+  // Bridge any legacy fields before hitting the API
+  if (!(payload instanceof FormData)) {
+    const next = { ...payload };
+    // Fold all legacy keys into a single boolean
+    const recValue =
+      next.isRestaurantRecommended ??
+      next.isRestaurantRecomended ??
+      next.isRecomended;
+
+    if ('isRecomended' in next) delete next.isRecomended;
+    if ('isRestaurantRecomended' in next) delete next.isRestaurantRecomended;
+    if ('isRestaurantPromoted' in next) delete next.isRestaurantPromoted;
+
+    const normalizedRecommended = recValue == null ? undefined : Boolean(recValue);
+    if (normalizedRecommended !== undefined) next.isRestaurantRecommended = normalizedRecommended;
+    else delete next.isRestaurantRecommended;
+
+    payload = next;
+  }
   const res = payload instanceof FormData
     ? await api.patch(url, payload, { headers: { 'Content-Type': 'multipart/form-data' } })
     : await api.patch(url, payload);
-  const out = res.data?.data ?? res.data;
+  // API returns { data: { menuItem } }; fall back to bare body
+  const out = res.data?.data?.menuItem ?? res.data?.data ?? res.data;
   return normalizeItem(out);
 }
