@@ -76,11 +76,25 @@ export default function UpsellPage () {
   const [savingId, setSavingId] = useState(null);
   const [search, setSearch] = useState('');
 
-  // Reset drafts + selection when data refreshes
+  // Reset drafts when server combos change, but avoid infinite loops by skipping no-op updates
   useEffect(() => {
-    setDraftCombos(baseCombos);
+    setDraftCombos((prev) => {
+      if (!baseCombos || prev === baseCombos) return prev;
+
+      const prevKeys = Object.keys(prev || {});
+      const nextKeys = Object.keys(baseCombos || {});
+      if (prevKeys.length === nextKeys.length && prevKeys.every((k) => nextKeys.includes(k))) {
+        const unchanged = prevKeys.every((k) => sameCombos(prev[k], baseCombos[k]));
+        if (unchanged) return prev;
+      }
+      return baseCombos;
+    });
+  }, [baseCombos]);
+
+  // Pick a default item once items are available
+  useEffect(() => {
     if (!selectedId && items.length) setSelectedId(items[0]._id);
-  }, [baseCombos, items, selectedId]);
+  }, [items, selectedId]);
 
   const menuOptions = useMemo(
     () => items.map((it) => ({

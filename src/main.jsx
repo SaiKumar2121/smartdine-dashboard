@@ -11,6 +11,7 @@ import TablesPage from './Components/restaurant/section/TablesPage.jsx';
 import BillingPage from './Components/restaurant/section/BillingPage.jsx';
 import SettingsPage from './Components/restaurant/section/SettingsPage.jsx';
 import HelpPage from './Components/restaurant/section/HelpPage.jsx';
+import CategoryGroups from './Components/restaurant/section/CategoryGroups.jsx';
 import 'antd/dist/reset.css';
 import './index.css';
 
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to='menu' replace /> },
       { path: 'menu', element: <MenuPage />, handle: { title: 'Menu Management' } },
+      { path: 'category-groups', element: <CategoryGroups />, handle: { title: 'Category Groups' } },
       { path: 'upsell', element: <UpsellPage />, handle: { title: 'Upsell' } },
       { path: 'orders', element: <OrdersPage />, handle: { title: 'Orders' } },
       { path: 'tables', element: <TablesPage />, handle: { title: 'Tables' } },
