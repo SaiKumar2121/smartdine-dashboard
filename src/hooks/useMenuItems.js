@@ -1,13 +1,24 @@
 // hooks/useMenuItems.js
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllMenuItemsByRestaurant, updateMenuItem } from '../api/menuItems';
 
 export function useMenuItems (restaurantId, filters = {}) {
+  const stableFilterKey = useMemo(
+    () => JSON.stringify(filters || {}),
+    [filters]
+  );
+  const normalizedFilters = useMemo(
+    () => (filters && typeof filters === 'object' ? filters : {}),
+    [stableFilterKey]
+  );
+
   return useQuery({
-    queryKey: ['menu-items-all', restaurantId, filters],
-    queryFn: () => getAllMenuItemsByRestaurant(restaurantId, filters),
+    queryKey: ['menu-items-all', restaurantId, stableFilterKey],
+    queryFn: () => getAllMenuItemsByRestaurant(restaurantId, normalizedFilters),
     enabled: !!restaurantId,
-    staleTime: 60_000
+    staleTime: 60_000,
+    refetchOnWindowFocus: false
   });
 }
 

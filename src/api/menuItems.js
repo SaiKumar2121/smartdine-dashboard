@@ -51,8 +51,8 @@ const normalizeItem = (x = {}) => {
   const posItemId = x.posItemId ?? null;
   const status = x.status ?? 'active';
   const isRestaurantRecommended = !!(
-    x.isRestaurantRecommended ??   // new name (if backend adds later)
-    x.isRecommended ??             // 🔥 this is what backend sends now
+    x.isRestaurantRecommended ??
+    x.isRecommended ??
     x.isRestaurantRecomended ??
     x.isRestaurantPromoted ??
     x.isRecomended ??
@@ -83,7 +83,7 @@ const normalizeItem = (x = {}) => {
 };
 
 // single page fetch (used internally)
-async function getMenuItemsByRestaurantPaged(restaurantId, params = {}) {
+async function getMenuItemsByRestaurantPaged (restaurantId, params = {}) {
   const res = await api.get(`/restaurants/${restaurantId}/menu-items`, { params });
   const d = res.data?.data || {};
   const items = (d.menuItems || d.items || []).map(normalizeItem);
@@ -99,7 +99,7 @@ async function getMenuItemsByRestaurantPaged(restaurantId, params = {}) {
 }
 
 // public: fetch ALL items (auto-paginates until done)
-export async function getAllMenuItemsByRestaurant(restaurantId, params = {}) {
+export async function getAllMenuItemsByRestaurant (restaurantId, params = {}) {
   const limit = Math.max(1, Number(params.limit || 100)); // 100 works with your backend cap
   let page = 1;
 
@@ -107,7 +107,7 @@ export async function getAllMenuItemsByRestaurant(restaurantId, params = {}) {
   let totalPages = 1;
 
   // first page
-  let { items, pagination } = await getMenuItemsByRestaurantPaged(restaurantId, { ...params, page, limit });
+  const { items, pagination } = await getMenuItemsByRestaurantPaged(restaurantId, { ...params, page, limit });
   out.push(...items);
   totalPages = Number(pagination.totalPages || 1);
 

@@ -6,7 +6,8 @@ export function useCategoryGroups (restaurantId) {
     queryKey: ['categoryGroups', restaurantId],
     queryFn: () => fetchCategoryGroups(restaurantId),
     enabled: !!restaurantId,
-    staleTime: 60 * 1000
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false
   });
 }
 
