@@ -2,9 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllMenuItemsByRestaurant, updateMenuItem } from '../api/menuItems';
 
-// Admin wants ALL items in one page:
-// this hook auto-fetches all pages and returns a flat array
-export function useMenuItems(restaurantId, filters = {}) {
+export function useMenuItems (restaurantId, filters = {}) {
   return useQuery({
     queryKey: ['menu-items-all', restaurantId, filters],
     queryFn: () => getAllMenuItemsByRestaurant(restaurantId, filters),
