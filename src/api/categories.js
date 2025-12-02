@@ -10,3 +10,8 @@ export async function fetchCategories(restaurantId) {
     if (data && Array.isArray(data.categories)) return data.categories;
     return [];
 }
+
+export async function updateCategory(restaurantId, categoryId, data) {
+    const res = await api.patch(`/restaurants/${restaurantId}/categories/${categoryId}`, data);
+    return res.data;
+}
