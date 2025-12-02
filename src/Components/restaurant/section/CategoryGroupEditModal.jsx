@@ -79,7 +79,7 @@ export default function CategoryGroupEditModal({
       onOk={handleOk}
       onCancel={onCancel}
       confirmLoading={saving}
-      width={700}
+      width={900}
       destroyOnClose
     >
       <Form
@@ -143,7 +143,7 @@ export default function CategoryGroupEditModal({
                     {...restField}
                     name={[name, 'triggerEvent']}
                     rules={[{ required: true, message: 'Missing trigger' }]}
-                    style={{ width: 200 }}
+                    style={{ width: 300 }}
                   >
                     <Select placeholder='Trigger Event'>
                       {TRIGGER_EVENTS.map(ev => (
