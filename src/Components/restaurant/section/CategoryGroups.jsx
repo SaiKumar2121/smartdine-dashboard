@@ -149,16 +149,21 @@ function CategoryGroups() {
                 style={cardStyle}
                 bodyStyle={{ padding: 16 }}
                 title={
-                  <Space size={8} wrap align="center">
-                    <ClusterOutlined style={{ color: '#1677ff' }} />
-                    <Text strong style={{ fontSize: 16 }}>{group.name}</Text>
-                    <Divider type="vertical" style={{ margin: '0 8px', height: '1.2em', top: 0 }} />
-                    <Tag color={eligible ? 'success' : 'volcano'} style={{ margin: 0 }}>
-                      {eligible ? 'Eligible as Current Group' : 'Not Eligible as Current Group'}
+                  <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                    <Tag color='default' style={{ marginTop: 4, fontSize: '11px', width: 'fit-content' }}>
+                      ID: {groupId}
                     </Tag>
-                    <Tag color='blue' style={{ margin: 0 }}>
-                      Max Items per Guest: {maxItems}
-                    </Tag>
+                    <Space size={8} wrap align="center">
+                      <ClusterOutlined style={{ color: '#1677ff' }} />
+                      <Text strong style={{ fontSize: 16 }}>{group.name}</Text>
+                      <Divider type="vertical" style={{ margin: '0 8px', height: '1.2em', top: 0 }} />
+                      <Tag color={eligible ? 'success' : 'volcano'} style={{ margin: 0 }}>
+                        {eligible ? 'Eligible as Current Group' : 'Not Eligible as Current Group'}
+                      </Tag>
+                      <Tag color='blue' style={{ margin: 0 }}>
+                        Max Items per Guest: {maxItems}
+                      </Tag>
+                    </Space>
                   </Space>
                 }
                 extra={
@@ -176,13 +181,16 @@ function CategoryGroups() {
                   <Col span={24}>
                     {groupCategories.length > 0 && (
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <Space wrap>
+                          <Tag color='purple' style={{ margin: 0 }}>
+                            Categories
+                          </Tag>
                           {groupCategories.map((cat) => (
                             <Tag key={cat._id || cat.id} color="cyan" style={{ margin: 0 }}>
-                              <span style={{ fontWeight: 600 }}>Category:</span> {cat.name}
+                              {cat.name}
                             </Tag>
                           ))}
-                        </div>
+                        </Space>
                       </div>
                     )}
 
@@ -210,11 +218,6 @@ function CategoryGroups() {
                     </Space>
                   </Col>
                 </Row>
-                <Divider style={{ margin: '12px 0' }} />
-                <Space size={10}>
-                  <Text type='secondary'>ID</Text>
-                  <Tag color='default' style={{ margin: 0 }}>{groupId}</Tag>
-                </Space>
               </Card>
             );
           })}
