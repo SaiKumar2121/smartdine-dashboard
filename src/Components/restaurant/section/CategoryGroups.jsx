@@ -1,8 +1,8 @@
 import React, { memo, useState } from 'react';
-import { Card, Typography, Space, Row, Col, Skeleton, Empty, Button, message, Tag, Divider, Badge, Tooltip } from 'antd';
-import { EditOutlined, ClusterOutlined, LinkOutlined, FireOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Typography, Space, Row, Col, Skeleton, Empty, Button, message, Tag, Divider, Badge, Tooltip, Popconfirm } from 'antd';
+import { EditOutlined, ClusterOutlined, LinkOutlined, FireOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
-import { useCategoryGroups, useCreateCategoryGroup, useUpdateCategoryGroup } from '../../../hooks/useCategoryGroups';
+import { useCategoryGroups, useCreateCategoryGroup, useUpdateCategoryGroup, useDeleteCategoryGroup } from '../../../hooks/useCategoryGroups';
 import { useCategories, useUpdateCategory } from '../../../hooks/useCategories';
 import CategoryGroupEditModal from './CategoryGroupEditModal';
 
@@ -22,10 +22,12 @@ function CategoryGroups () {
 
   const { mutateAsync: createGroup, isPending: creating } = useCreateCategoryGroup();
   const { mutateAsync: updateGroup, isPending: updating } = useUpdateCategoryGroup();
+  const { mutateAsync: deleteGroup, isPending: deleting } = useDeleteCategoryGroup();
   const { mutateAsync: updateCategoryMutation } = useUpdateCategory();
 
   const [editingGroup, setEditingGroup] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const triggerOrder = ['ON_CATEGORY_GROUP_START', 'WHILE_CATEGORY_GROUP_ACTIVE', 'ON_CATEGORY_GROUP_END'];
   const normalizeTrigger = (value = '') => value.toUpperCase();
@@ -142,6 +144,32 @@ function CategoryGroups () {
     return g ? g.name : 'Unknown Group';
   };
 
+  const handleDelete = async (group) => {
+    const groupId = getGroupId(group);
+    if (!groupId) return;
+    const assignedCount = (categories || []).filter(
+      cat => normalizeId(getCategoryGroupId(cat)) === normalizeId(groupId)
+    ).length;
+    if (assignedCount > 0) {
+      message.warning('Remove categories from this category group before deleting.');
+      return;
+    }
+    try {
+      setDeletingId(groupId);
+      await deleteGroup({
+        restaurantId: rid,
+        categoryGroupId: groupId
+      });
+      message.success('Category group deleted successfully');
+      refetchCategories();
+    } catch (err) {
+      console.error(err);
+      message.error(err?.response?.data?.message || 'Failed to delete category group');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const containerStyle = {
     // background: 'linear-gradient(135deg, #10396b 0%, #1c578a 45%, #0f9b8e 100%)',
     background: '#F5F7FA',
@@ -191,28 +219,22 @@ function CategoryGroups () {
   return (
     <>
       <div style={containerStyle}>
-        <Row justify='space-between' align='middle' gutter={12} style={{ marginBottom: 12 }}>
-          <Col>
-            <Space>
+        <Row justify='start' align='middle' gutter={12} style={{ marginBottom: 12 }}>
+          <Col flex='none'>
+            <Space size={12} wrap>
               <Badge color='#40a9ff' />
-              <div>
-                {/* <Text style={{ color: '#000205ff', letterSpacing: 0.3 }}>Category Automations</Text> */}
-
-              </div>
+              <Button
+                type='primary'
+                icon={<PlusOutlined />}
+                loading={creating}
+                onClick={() => {
+                  setIsCreating(true);
+                  setEditingGroup({});
+                }}
+              >
+                Create Category Group
+              </Button>
             </Space>
-          </Col>
-          <Col>
-            <Button
-              type='primary'
-              icon={<PlusOutlined />}
-              loading={creating}
-              onClick={() => {
-                setIsCreating(true);
-                setEditingGroup({});
-              }}
-            >
-              Create Category Group
-            </Button>
           </Col>
         </Row>
 
@@ -252,14 +274,32 @@ function CategoryGroups () {
                   </Space>
                 }
                 extra={
-                  <Button
-                    type='primary'
-                    ghost
-                    icon={<EditOutlined />}
-                    onClick={() => setEditingGroup(group)}
-                  >
-                    Edit
-                  </Button>
+                  <Space>
+                    <Button
+                      type='primary'
+                      ghost
+                      icon={<EditOutlined />}
+                      onClick={() => setEditingGroup(group)}
+                    >
+                      Edit
+                    </Button>
+                    <Popconfirm
+                      title='Delete category group?'
+                      description='Are you sure you want to delete this group?'
+                      okText='Yes, delete'
+                      cancelText='Cancel'
+                      okButtonProps={{ loading: deleting && deletingId === groupId }}
+                      onConfirm={() => handleDelete(group)}
+                      disabled={deletingId === groupId}
+                    >
+                      <Button
+                        danger
+                        type='text'
+                        icon={<DeleteOutlined />}
+                        loading={deleting && deletingId === groupId}
+                      />
+                    </Popconfirm>
+                  </Space>
                 }
               >
                 <Row gutter={[12, 12]} align='middle'>
