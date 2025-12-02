@@ -7,7 +7,7 @@ import CategoryGroupEditModal from './CategoryGroupEditModal';
 
 const { Title, Text } = Typography;
 
-function CategoryGroups () {
+function CategoryGroups() {
   const { rid } = useParams();
   const { data: groups, isLoading, isError, error, refetch } = useCategoryGroups(rid);
   const { mutateAsync: createGroup, isPending: creating } = useCreateCategoryGroup();
@@ -16,7 +16,7 @@ function CategoryGroups () {
   const [editingGroup, setEditingGroup] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const triggerOrder = ['ON_START', 'ON_ACTIVE', 'ON_END'];
+  const triggerOrder = ['ON_CATEGORY_GROUP_START', 'WHILE_CATEGORY_GROUP_ACTIVE', 'ON_CATEGORY_GROUP_END'];
   const normalizeTrigger = (value = '') => value.toUpperCase();
   const sortLinkedGroups = (links = []) => {
     return [...links].sort((a, b) => {
@@ -141,9 +141,16 @@ function CategoryGroups () {
                 style={cardStyle}
                 bodyStyle={{ padding: 16 }}
                 title={
-                  <Space size={8}>
+                  <Space size={8} wrap align="center">
                     <ClusterOutlined style={{ color: '#1677ff' }} />
                     <Text strong style={{ fontSize: 16 }}>{group.name}</Text>
+                    <Divider type="vertical" style={{ margin: '0 8px', height: '1.2em', top: 0 }} />
+                    <Tag color={eligible ? 'success' : 'volcano'} style={{ margin: 0 }}>
+                      {eligible ? 'Eligible as Current Group' : 'Not Eligible as Current Group'}
+                    </Tag>
+                    <Tag color='blue' style={{ margin: 0 }}>
+                      Max items per guest: {maxItems}
+                    </Tag>
                   </Space>
                 }
                 extra={
@@ -158,18 +165,7 @@ function CategoryGroups () {
                 }
               >
                 <Row gutter={[12, 12]} align='middle'>
-                  <Col xs={24} md={12}>
-                    <Space size={10} align='center'>
-                      <Tag color={eligible ? 'success' : 'volcano'} style={{ margin: 0 }}>
-                        {eligible ? 'Eligible for promos' : 'Promos disabled'}
-                      </Tag>
-                      <Tag color='blue' style={{ margin: 0 }}>
-                        Max per guest: {maxItems}
-                      </Tag>
-                    </Space>
-                  </Col>
-
-                  <Col xs={24} md={12}>
+                  <Col span={24}>
                     <Space wrap>
                       <Tooltip title='Automated triggers to other groups'>
                         <Tag icon={<LinkOutlined />} color={sortedLinkedGroups?.length ? 'geekblue' : 'default'} style={{ margin: 0 }}>
@@ -178,18 +174,18 @@ function CategoryGroups () {
                       </Tooltip>
                       {sortedLinkedGroups?.length
                         ? (
-                            sortedLinkedGroups.map((link, idx) => (
-                              <Tag
-                                key={`${groupId}-${idx}`}
-                                color='processing'
-                                style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}
-                              >
-                                <FireOutlined style={{ color: '#fa8c16' }} />
-                                <span style={{ fontWeight: 600 }}>{link.triggerEvent.replace(/_/g, ' ')}</span>
-                                <span style={{ opacity: 0.8 }}>→ {getGroupName(link.targetCategoryGroupId)}</span>
-                              </Tag>
-                            ))
-                          )
+                          sortedLinkedGroups.map((link, idx) => (
+                            <Tag
+                              key={`${groupId}-${idx}`}
+                              color='processing'
+                              style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <FireOutlined style={{ color: '#fa8c16' }} />
+                              <span style={{ fontWeight: 600 }}>{link.triggerEvent.replace(/_/g, ' ')}</span>
+                              <span style={{ opacity: 0.8 }}>→ {getGroupName(link.targetCategoryGroupId)}</span>
+                            </Tag>
+                          ))
+                        )
                         : null}
                     </Space>
                   </Col>
