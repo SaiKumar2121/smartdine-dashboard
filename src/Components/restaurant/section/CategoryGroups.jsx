@@ -202,17 +202,22 @@ function CategoryGroups() {
                       </Tooltip>
                       {sortedLinkedGroups?.length
                         ? (
-                          sortedLinkedGroups.map((link, idx) => (
-                            <Tag
-                              key={`${groupId}-${idx}`}
-                              color='processing'
-                              style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}
-                            >
-                              <FireOutlined style={{ color: '#fa8c16' }} />
-                              <span style={{ fontWeight: 600 }}>{link.triggerEvent.replace(/_/g, ' ')}</span>
-                              <span style={{ opacity: 0.8 }}>→ {getGroupName(link.targetCategoryGroupId)}</span>
-                            </Tag>
-                          ))
+                          sortedLinkedGroups.map((link, idx) => {
+                            const maxPromo = link.maxPromotions != null && link.maxPromotions !== ''
+                              ? link.maxPromotions
+                              : 'Unlimited';
+                            return (
+                              <Tag
+                                key={`${groupId}-${idx}`}
+                                color='processing'
+                                style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+                              >
+                                <FireOutlined style={{ color: '#fa8c16' }} />
+                                <span style={{ fontWeight: 600 }}>{link.triggerEvent.replace(/_/g, ' ')}</span>
+                                <span style={{ opacity: 0.8 }}>→ {getGroupName(link.targetCategoryGroupId)} ({maxPromo})</span>
+                              </Tag>
+                            );
+                          })
                         )
                         : null}
                     </Space>

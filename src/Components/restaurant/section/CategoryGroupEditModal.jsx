@@ -28,7 +28,7 @@ const getGroupId = g => {
   return g._id || g.id || g.categoryGroupId || g.categoryGroupID || null;
 };
 
-export default function CategoryGroupEditModal ({
+export default function CategoryGroupEditModal({
   open,
   group,
   allGroups = [],
@@ -65,8 +65,6 @@ export default function CategoryGroupEditModal ({
     }
   };
 
-  // ✅ include ALL groups (including the current one),
-  // so "Starters" appears and existing self-links show the name.
   const targetGroupOptions = (allGroups || [])
     .map(g => ({
       __id: getGroupId(g),
