@@ -3,13 +3,16 @@ import { Card, Typography, Space, Row, Col, Skeleton, Empty, Button, message, Ta
 import { EditOutlined, ClusterOutlined, LinkOutlined, FireOutlined, PlusOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { useCategoryGroups, useCreateCategoryGroup, useUpdateCategoryGroup } from '../../../hooks/useCategoryGroups';
+import { useCategories } from '../../../hooks/useCategories';
 import CategoryGroupEditModal from './CategoryGroupEditModal';
 
 const { Title, Text } = Typography;
 
 function CategoryGroups() {
   const { rid } = useParams();
-  const { data: groups, isLoading, isError, error, refetch } = useCategoryGroups(rid);
+  const { data: groups, isLoading: groupsLoading, isError: groupsError, error: groupsErrorObj, refetch: refetchGroups } = useCategoryGroups(rid);
+  const { data: categories, isLoading: categoriesLoading } = useCategories(rid);
+
   const { mutateAsync: createGroup, isPending: creating } = useCreateCategoryGroup();
   const { mutateAsync: updateGroup, isPending: updating } = useUpdateCategoryGroup();
 
@@ -75,7 +78,7 @@ function CategoryGroups() {
     borderRadius: 14
   };
 
-  if (isLoading) {
+  if (groupsLoading || categoriesLoading) {
     return (
       <div style={{ padding: 12 }}>
         <Skeleton active paragraph={{ rows: 2 }} />
@@ -84,13 +87,13 @@ function CategoryGroups() {
     );
   }
 
-  if (isError) {
+  if (groupsError) {
     return (
       <div style={{ padding: 16 }}>
         <Title level={4}>Failed to load category groups</Title>
-        <Text type='danger'>{error?.message || 'Unknown error'}</Text>
+        <Text type='danger'>{groupsErrorObj?.message || 'Unknown error'}</Text>
         <div style={{ marginTop: 12 }}>
-          <Button onClick={() => refetch()}>Retry</Button>
+          <Button onClick={() => refetchGroups()}>Retry</Button>
         </div>
       </div>
     );
@@ -135,6 +138,11 @@ function CategoryGroups() {
             const maxItems = group.maxItemsPerGuest ?? 'Unlimited';
             const sortedLinkedGroups = sortLinkedGroups(group.linkedCategoryGroups);
 
+            // Filter categories that belong to this group
+            const groupCategories = (categories || []).filter(cat =>
+              cat.categoryGroupId === groupId
+            );
+
             return (
               <Card
                 key={groupId}
@@ -149,7 +157,7 @@ function CategoryGroups() {
                       {eligible ? 'Eligible as Current Group' : 'Not Eligible as Current Group'}
                     </Tag>
                     <Tag color='blue' style={{ margin: 0 }}>
-                      Max items per guest: {maxItems}
+                      Max Items per Guest: {maxItems}
                     </Tag>
                   </Space>
                 }
@@ -166,10 +174,22 @@ function CategoryGroups() {
               >
                 <Row gutter={[12, 12]} align='middle'>
                   <Col span={24}>
+                    {groupCategories.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {groupCategories.map((cat) => (
+                            <Tag key={cat._id || cat.id} color="cyan" style={{ margin: 0 }}>
+                              <span style={{ fontWeight: 600 }}>Category:</span> {cat.name}
+                            </Tag>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <Space wrap>
                       <Tooltip title='Automated triggers to other groups'>
                         <Tag icon={<LinkOutlined />} color={sortedLinkedGroups?.length ? 'geekblue' : 'default'} style={{ margin: 0 }}>
-                          {sortedLinkedGroups?.length ? `${sortedLinkedGroups.length} linked` : 'No linked groups'}
+                          {sortedLinkedGroups?.length ? `Linked Groups` : 'No Linked Groups'}
                         </Tag>
                       </Tooltip>
                       {sortedLinkedGroups?.length
