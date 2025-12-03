@@ -16,6 +16,18 @@ const itemBelongsToCategory = (item, category) => {
   if (targetId && normalizeId(item.categoryId) === targetId) return true;
   return (item.category || '') === (category.name || '');
 };
+const getCategoryId = (cat) => cat?._id || cat?.id;
+const getParentCategoryId = (cat) => {
+  const directParent = cat?.parentCategoryId ?? cat?.parentCategoryID ?? cat?.parentId ?? cat?.parentID ?? null;
+  if (directParent) return normalizeId(directParent);
+  const parentObj = cat?.parentCategory || cat?.parent;
+  if (parentObj && typeof parentObj === 'object') {
+    return normalizeId(parentObj._id || parentObj.id);
+  }
+  if (typeof cat?.parentCategory === 'string') return normalizeId(cat.parentCategory);
+  return '';
+};
+const displayOrderLabel = (cat) => (cat?.displayOrder ?? cat?.display_order ?? cat?.order ?? cat?.sortOrder ?? null);
 
 export default function CategoriesPage () {
   const { rid } = useParams();
@@ -31,17 +43,27 @@ export default function CategoriesPage () {
   const [moveTargetId, setMoveTargetId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [isOverDrop, setIsOverDrop] = useState(false);
-  const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
+  const [createForm] = Form.useForm();
 
   const sortedCategories = useMemo(() => {
     if (!categories) return [];
-    return [...categories].sort((a, b) => (a?.name || '').localeCompare(b?.name || '', undefined, { sensitivity: 'base' }));
+    const getOrder = (cat) => {
+      const order = displayOrderLabel(cat);
+      return order == null ? Number.POSITIVE_INFINITY : Number(order);
+    };
+    return [...categories].sort((a, b) => {
+      const orderDiff = getOrder(a) - getOrder(b);
+      if (orderDiff !== 0) return orderDiff;
+      return (a?.name || '').localeCompare(b?.name || '', undefined, { sensitivity: 'base' });
+    });
   }, [categories]);
 
   const selectedCategory = useMemo(
     () => sortedCategories.find(cat => normalizeId(cat._id || cat.id) === normalizeId(selectedCategoryId)) || sortedCategories[0] || null,
     [sortedCategories, selectedCategoryId]
   );
+  const isParentCategory = (selectedCategory?.type || '').toLowerCase() === 'parent';
 
   useEffect(() => {
     if (selectedCategory) {
@@ -65,21 +87,85 @@ export default function CategoriesPage () {
     return menuItems.filter(item => itemBelongsToCategory(item, targetCategory));
   }, [menuItems, targetCategory]);
 
+  const referencedParentIds = useMemo(() => {
+    const ids = new Set();
+    sortedCategories.forEach((cat) => {
+      const parentId = getParentCategoryId(cat);
+      if (parentId) ids.add(parentId);
+    });
+    return ids;
+  }, [sortedCategories]);
+  const parentCategories = useMemo(
+    () => sortedCategories.filter((cat) => {
+      const catId = normalizeId(getCategoryId(cat));
+      const catType = (cat?.type || '').toLowerCase();
+      return catType === 'parent' || referencedParentIds.has(catId);
+    }),
+    [sortedCategories, referencedParentIds]
+  );
+  const hasParentCategories = parentCategories.length > 0;
+  const parentIdSet = useMemo(
+    () => new Set(parentCategories.map(cat => normalizeId(getCategoryId(cat)))),
+    [parentCategories]
+  );
+  const childrenByParent = useMemo(() => {
+    const map = new Map();
+    sortedCategories.forEach((cat) => {
+      const parentId = getParentCategoryId(cat);
+      const catType = (cat?.type || '').toLowerCase();
+      if (!parentId || !parentIdSet.has(parentId)) return;
+      if (catType === 'parent') return;
+      if (!map.has(parentId)) map.set(parentId, []);
+      map.get(parentId).push(cat);
+    });
+    // Sort children under each parent by display order then name
+    Array.from(map.keys()).forEach((key) => {
+      map.set(key, map.get(key).sort((a, b) => {
+        const orderA = displayOrderLabel(a);
+        const orderB = displayOrderLabel(b);
+        const diff = (orderA ?? Number.POSITIVE_INFINITY) - (orderB ?? Number.POSITIVE_INFINITY);
+        if (diff !== 0) return diff;
+        return (a?.name || '').localeCompare(b?.name || '', undefined, { sensitivity: 'base' });
+      }));
+    });
+    return map;
+  }, [sortedCategories, parentIdSet]);
+  const ungroupedChildren = useMemo(
+    () => sortedCategories.filter((cat) => {
+      const catType = (cat?.type || '').toLowerCase();
+      if (catType === 'parent') return false;
+      const parentId = getParentCategoryId(cat);
+      if (parentId && parentIdSet.has(parentId)) return false;
+      return true;
+    }),
+    [sortedCategories, parentIdSet]
+  );
+
   useEffect(() => {
     if (!selectedCategory) return;
     setMoveTargetId(null);
     setDraggingItemId(null);
     setIsOverDrop(false);
-    form.setFieldsValue({
+    editForm.setFieldsValue({
       name: selectedCategory.name,
       displayOrder: selectedCategory.displayOrder ?? null,
       type: selectedCategory.type || 'child'
     });
-  }, [selectedCategory, form]);
+  }, [selectedCategory, editForm]);
+
+  useEffect(() => {
+    if (open) {
+      createForm.resetFields();
+      createForm.setFieldsValue({
+        type: 'child',
+        displayOrder: null
+      });
+    }
+  }, [open, createForm]);
 
   const handleCreate = async () => {
     try {
-      const values = await form.validateFields();
+      const values = await createForm.validateFields();
       const payload = {
         name: values.name,
         displayOrder: values.displayOrder ?? null,
@@ -88,7 +174,7 @@ export default function CategoriesPage () {
       await createCategory({ restaurantId: rid, data: payload });
       message.success('Category created');
       setOpen(false);
-      form.resetFields();
+      createForm.resetFields();
     } catch (err) {
       if (err?.errorFields) return;
       console.error(err);
@@ -99,16 +185,14 @@ export default function CategoriesPage () {
   const handleSave = async () => {
     if (!selectedCategory) return;
     try {
-      const values = await form.validateFields();
-      const newName = values.name;
+      const { name, displayOrder } = await editForm.validateFields(['name', 'displayOrder']);
 
       await updateCategory({
         restaurantId: rid,
         categoryId: selectedCategory._id || selectedCategory.id,
         data: {
-          name: newName,
-          displayOrder: values.displayOrder ?? null,
-          type: values.type || 'child'
+          name,
+          displayOrder: displayOrder ?? null
         }
       });
 
@@ -124,6 +208,10 @@ export default function CategoriesPage () {
     if (!selectedCategory || !draggingItemId) return;
     if (!targetCategory?.name) {
       message.warning('Select a target category first.');
+      return;
+    }
+    if ((targetCategory?.type || '').toLowerCase() === 'parent') {
+      message.warning('Cannot move items to a parent category.');
       return;
     }
     try {
@@ -201,8 +289,11 @@ export default function CategoriesPage () {
 
   return (
     <>
-      <Row gutter={16}>
-        <Col xs={24} md={8} style={{ position: 'sticky', top: 0, alignSelf: 'flex-start' }}>
+      <style>
+        {'.hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;}.hide-scrollbar::-webkit-scrollbar{display:none;}'}
+      </style>
+      <Row gutter={24}>
+        <Col xs={24} md={5} lg={4} style={{ position: 'sticky', top: 0, alignSelf: 'flex-start' }}>
           <Card
             title={(
               <Space>
@@ -211,38 +302,144 @@ export default function CategoriesPage () {
                 </Button>
               </Space>
             )}
-            bodyStyle={{ padding: 16, maxHeight: 'calc(100vh - 140px)', overflow: 'auto' }}
+            bodyStyle={{ padding: 16 }}
           >
-            {(!sortedCategories || sortedCategories.length === 0)
-              ? <Empty description='No categories found' />
-              : (
-                <Space direction='vertical' size='small' style={{ width: '100%' }}>
-                  {sortedCategories.map((cat, idx) => {
-                    const active = normalizeId(cat._id || cat.id) === normalizeId(selectedCategory?._id || selectedCategory?.id);
-                    return (
-                      <Tag
-                        key={cat._id || cat.id || idx}
-                        color={active ? 'blue' : 'default'}
-                        style={{
-                          fontSize: 14,
-                          padding: '8px 14px',
-                          borderRadius: 20,
-                          cursor: 'pointer',
-                          width: '100%',
-                          textAlign: 'left'
-                        }}
-                        onClick={() => setSelectedCategoryId(cat._id || cat.id)}
-                      >
-                        {cat.name || 'Untitled Category'}
-                      </Tag>
-                    );
-                  })}
-                </Space>
-                )}
+            <div className='hide-scrollbar' style={{ maxHeight: 'calc(100vh - 140px)', overflow: 'auto' }}>
+              {(!sortedCategories || sortedCategories.length === 0)
+                ? <Empty description='No categories found' />
+                : (
+                    hasParentCategories
+                      ? (
+                        <Space direction='vertical' size='middle' style={{ width: '100%' }}>
+                          {parentCategories.map((parentCat) => {
+                            const parentId = normalizeId(getCategoryId(parentCat));
+                            const activeParent = parentId === normalizeId(selectedCategory?._id || selectedCategory?.id);
+                            const childList = childrenByParent.get(parentId) || [];
+                            return (
+                              <div key={parentId || parentCat.name} style={{ width: '100%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                  <span style={{ minWidth: 24, fontWeight: 600, textAlign: 'right' }}>
+                                    {displayOrderLabel(parentCat) ?? '-'}
+                                  </span>
+                                  <Tag
+                                    color={activeParent ? 'blue' : 'processing'}
+                                    style={{
+                                      fontSize: 16,
+                                      padding: '10px 16px',
+                                      borderRadius: 22,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      fontWeight: 600
+                                    }}
+                                    onClick={() => setSelectedCategoryId(parentCat._id || parentCat.id)}
+                                  >
+                                    {parentCat.name || 'Untitled Parent'}
+                                  </Tag>
+                                </div>
+                                <div style={{ marginLeft: 14 }}>
+                                  <Space direction='vertical' size={8} style={{ width: '100%' }}>
+                                    {childList.length > 0
+                                      ? childList.map((cat) => {
+                                        const active = normalizeId(cat._id || cat.id) === normalizeId(selectedCategory?._id || selectedCategory?.id);
+                                        return (
+                                          <div key={cat._id || cat.id || cat.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <span style={{ minWidth: 24, fontWeight: 600, textAlign: 'right' }}>
+                                              {displayOrderLabel(cat) ?? '-'}
+                                            </span>
+                                            <Tag
+                                              color={active ? 'geekblue' : 'default'}
+                                              style={{
+                                                fontSize: 14,
+                                                padding: '7px 14px',
+                                                borderRadius: 18,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignSelf: 'flex-start'
+                                              }}
+                                              onClick={() => setSelectedCategoryId(cat._id || cat.id)}
+                                            >
+                                              {cat.name || 'Untitled Category'}
+                                            </Tag>
+                                          </div>
+                                        );
+                                      })
+                                      : <Text type='secondary'>No child categories</Text>}
+                                  </Space>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {ungroupedChildren.length > 0 && (
+                            <div style={{ width: '100%' }}>
+                              <Space direction='vertical' size={8} style={{ width: '100%' }}>
+                                {ungroupedChildren.map((cat) => {
+                                  const active = normalizeId(cat._id || cat.id) === normalizeId(selectedCategory?._id || selectedCategory?.id);
+                                  return (
+                                    <div key={cat._id || cat.id || cat.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                      <span style={{ minWidth: 24, fontWeight: 600, textAlign: 'right' }}>
+                                        {displayOrderLabel(cat) ?? '-'}
+                                      </span>
+                                      <Tag
+                                        color={active ? 'blue' : 'default'}
+                                        style={{
+                                          fontSize: 15,
+                                          padding: '8px 14px',
+                                          borderRadius: 22,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignSelf: 'flex-start'
+                                        }}
+                                        onClick={() => setSelectedCategoryId(cat._id || cat.id)}
+                                      >
+                                        {cat.name || 'Untitled Category'}
+                                      </Tag>
+                                    </div>
+                                  );
+                                })}
+                              </Space>
+                            </div>
+                          )}
+                        </Space>
+                        )
+                      : (
+                        <Space direction='vertical' size={8} style={{ width: '100%' }}>
+                          {ungroupedChildren.map((cat, idx) => {
+                            const active = normalizeId(cat._id || cat.id) === normalizeId(selectedCategory?._id || selectedCategory?.id);
+                            return (
+                              <div key={cat._id || cat.id || idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ minWidth: 24, fontWeight: 600, textAlign: 'right' }}>
+                                  {displayOrderLabel(cat) ?? '-'}
+                                </span>
+                                <Tag
+                                  color={active ? 'blue' : 'default'}
+                                  style={{
+                                    fontSize: 15,
+                                    padding: '8px 14px',
+                                    borderRadius: 22,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    display: 'inline-flex',
+                                    alignSelf: 'flex-start'
+                                  }}
+                                  onClick={() => setSelectedCategoryId(cat._id || cat.id)}
+                                >
+                                  {cat.name || 'Untitled Category'}
+                                </Tag>
+                              </div>
+                            );
+                          })}
+                        </Space>
+                        )
+                  )}
+            </div>
           </Card>
         </Col>
 
-        <Col xs={24} md={16}>
+        <Col
+          xs={24}
+          md={{ span: 16, offset: 1 }}
+          lg={{ span: 16, offset: 1 }}
+        >
           <Card
             title={(
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -265,7 +462,7 @@ export default function CategoriesPage () {
             {selectedCategory
               ? (
                 <Form
-                  form={form}
+                  form={editForm}
                   layout='vertical'
                   initialValues={{
                     type: 'child',
@@ -291,95 +488,103 @@ export default function CategoriesPage () {
                   <Form.Item
                     name='type'
                     label='Type'
+                    tooltip='Type can only be set when creating a category.'
                   >
-                    <Select>
+                    <Select disabled>
                       <Option value='child'>Child</Option>
                       <Option value='parent'>Parent</Option>
                     </Select>
                   </Form.Item>
 
-                  <Divider />
-                  <Text strong>Items in this category</Text>
-                  <div style={{ maxHeight: 280, overflow: 'auto', marginTop: 8, padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
-                    <Space size='small' wrap>
-                      {filteredItems.map(item => (
-                        <Tag
-                          key={item._id || item.id}
-                          color='cyan'
-                          style={{ margin: 0, cursor: moveTargetId ? 'grab' : 'default' }}
-                          draggable={!!moveTargetId}
-                          onDragStart={() => setDraggingItemId(item._id || item.id)}
-                          onDragEnd={() => {
-                            setDraggingItemId(null);
-                            setIsOverDrop(false);
-                          }}
-                        >
-                          {item.name || 'Untitled item'}
-                        </Tag>
-                      ))}
-                      {filteredItems.length === 0 && <Empty description='No items available in this category' />}
-                    </Space>
-                  </div>
-                  {/* <Text type='secondary'>Select which items belong to this category.</Text> */}
-
-                  <Divider />
-                  <Text strong>Move items to another category</Text>
-                  <Form.Item style={{ marginTop: 8, marginBottom: 12 }}>
-                    <Select
-                      placeholder='Select target category'
-                      value={moveTargetId}
-                      onChange={setMoveTargetId}
-                      style={{ width: '100%' }}
-                    >
-                      {sortedCategories
-                        .filter(cat => normalizeId(cat._id || cat.id) !== normalizeId(selectedCategory?._id || selectedCategory?.id))
-                        .map(cat => (
-                          <Option key={cat._id || cat.id} value={cat._id || cat.id}>
-                            {cat.name}
-                          </Option>
-                        ))}
-                    </Select>
-                  </Form.Item>
-                  <div
-                    style={{
-                      maxHeight: 160,
-                      overflow: 'auto',
-                      padding: 12,
-                      border: '1px dashed #d9d9d9',
-                      borderRadius: 8,
-                      background: isOverDrop ? '#e6f4ff' : '#fafafa',
-                      transition: 'background 0.2s'
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (moveTargetId) setIsOverDrop(true);
-                    }}
-                    onDragLeave={() => setIsOverDrop(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (moveTargetId) handleMoveDrop();
-                    }}
-                  >
-                    <Text type='secondary'>
-                      {moveTargetId
-                        ? 'Drag an item tag here to move it to the selected category.'
-                        : 'Select a target category, then drag an item tag here to move it.'}
-                    </Text>
-                  </div>
-                  {targetCategory && (
-                    <div style={{ marginTop: 12 }}>
-                      <Text strong>Items in target category</Text>
-                      <div style={{ maxHeight: 160, overflow: 'auto', marginTop: 8, padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                  {!isParentCategory && (
+                    <>
+                      <Divider />
+                      <Text strong>Items in this category</Text>
+                      <div className='hide-scrollbar' style={{ maxHeight: 280, overflow: 'auto', marginTop: 8, padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
                         <Space size='small' wrap>
-                          {targetItems.map(item => (
-                            <Tag key={item._id || item.id} color='green'>
+                          {filteredItems.map(item => (
+                            <Tag
+                              key={item._id || item.id}
+                              color='cyan'
+                              style={{ margin: 0, cursor: moveTargetId ? 'grab' : 'default' }}
+                              draggable={!!moveTargetId}
+                              onDragStart={() => setDraggingItemId(item._id || item.id)}
+                              onDragEnd={() => {
+                                setDraggingItemId(null);
+                                setIsOverDrop(false);
+                              }}
+                            >
                               {item.name || 'Untitled item'}
                             </Tag>
                           ))}
-                          {targetItems.length === 0 && <Empty description='No items in target category' />}
+                          {filteredItems.length === 0 && <Empty description='No items available in this category' />}
                         </Space>
                       </div>
-                    </div>
+
+                      <Divider />
+                      <Text strong>Move items to another category</Text>
+                      <Form.Item style={{ marginTop: 8, marginBottom: 12 }}>
+                        <Select
+                          placeholder='Select target category'
+                          value={moveTargetId}
+                          onChange={setMoveTargetId}
+                          style={{ width: '100%' }}
+                        >
+                          {sortedCategories
+                            .filter(cat => {
+                              const isSame = normalizeId(cat._id || cat.id) === normalizeId(selectedCategory?._id || selectedCategory?.id);
+                              const isParent = (cat?.type || '').toLowerCase() === 'parent';
+                              return !isSame && !isParent;
+                            })
+                            .map(cat => (
+                              <Option key={cat._id || cat.id} value={cat._id || cat.id}>
+                                {cat.name}
+                              </Option>
+                            ))}
+                        </Select>
+                      </Form.Item>
+                      <div
+                        style={{
+                          maxHeight: 160,
+                          overflow: 'auto',
+                          padding: 12,
+                          border: '1px dashed #d9d9d9',
+                          borderRadius: 8,
+                          background: isOverDrop ? '#e6f4ff' : '#fafafa',
+                          transition: 'background 0.2s'
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (moveTargetId) setIsOverDrop(true);
+                        }}
+                        onDragLeave={() => setIsOverDrop(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (moveTargetId) handleMoveDrop();
+                        }}
+                      >
+                        <Text type='secondary'>
+                          {moveTargetId
+                            ? 'Drag an item tag here to move it to the selected category.'
+                            : 'Select a target category, then drag an item tag here to move it.'}
+                        </Text>
+                      </div>
+                      {targetCategory && (
+                        <div style={{ marginTop: 12 }}>
+                          <Text strong>Items in target category</Text>
+                          <div className='hide-scrollbar' style={{ maxHeight: 160, overflow: 'auto', marginTop: 8, padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+                            <Space size='small' wrap>
+                              {targetItems.map(item => (
+                                <Tag key={item._id || item.id} color='green'>
+                                  {item.name || 'Untitled item'}
+                                </Tag>
+                              ))}
+                              {targetItems.length === 0 && <Empty description='No items in target category' />}
+                            </Space>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <Space style={{ marginTop: 16 }}>
@@ -398,13 +603,13 @@ export default function CategoriesPage () {
         onOk={handleCreate}
         onCancel={() => {
           setOpen(false);
-          form.resetFields();
+          createForm.resetFields();
         }}
         confirmLoading={creating}
         destroyOnClose
       >
         <Form
-          form={form}
+          form={createForm}
           layout='vertical'
           initialValues={{
             type: 'child',

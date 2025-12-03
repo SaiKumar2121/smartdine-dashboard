@@ -40,14 +40,13 @@ export default function CategoryEditPage () {
 
   const handleSubmit = async () => {
     try {
-      const values = await form.validateFields();
+      const { name, displayOrder } = await form.validateFields(['name', 'displayOrder']);
       await updateCategory({
         restaurantId: rid,
         categoryId,
         data: {
-          name: values.name,
-          displayOrder: values.displayOrder ?? null,
-          type: values.type || 'child'
+          name,
+          displayOrder: displayOrder ?? null
         }
       });
       message.success('Category updated');
@@ -111,8 +110,9 @@ export default function CategoryEditPage () {
         <Form.Item
           name='type'
           label='Type'
+          tooltip='Type is set during creation and cannot be changed later.'
         >
-          <Select>
+          <Select disabled>
             <Option value='child'>Child</Option>
             <Option value='parent'>Parent</Option>
           </Select>
