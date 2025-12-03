@@ -1,8 +1,8 @@
 import { Card, Typography, Tag, Space, Skeleton, Empty, Alert, Button, Modal, Form, Input, InputNumber, Select, message, Row, Col, Divider } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useCategories, useCreateCategory, useUpdateCategory } from '../../../hooks/useCategories';
+import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '../../../hooks/useCategories';
 import { useMenuItems, useUpdateMenuItem } from '../../../hooks/useMenuItems';
 
 const { Text } = Typography;
@@ -22,6 +22,7 @@ export default function CategoriesPage () {
   const { data: categories, isLoading, isError, error, refetch, isFetching } = useCategories(rid);
   const { mutateAsync: createCategory, isPending: creating } = useCreateCategory();
   const { mutateAsync: updateCategory, isPending: updating } = useUpdateCategory();
+  const { mutateAsync: deleteCategory, isPending: deleting } = useDeleteCategory();
   const { data: menuData } = useMenuItems(rid);
   const { mutateAsync: updateMenuItem, isPending: updatingItems } = useUpdateMenuItem(rid);
 
@@ -137,6 +138,46 @@ export default function CategoriesPage () {
     }
   };
 
+  const handleDeleteCategory = () => {
+    if (!selectedCategory) return;
+    const itemCount = filteredItems.length;
+
+    Modal.confirm({
+      title: 'Delete this category?',
+      icon: null,
+      content: (
+        <Space direction='vertical' size='small'>
+          <Text>
+            {`This will permanently delete "${selectedCategory.name || 'Untitled Category'}".`}
+          </Text>
+          {itemCount > 0 && (
+            <Text type='danger'>
+              {`There are ${itemCount} item(s) in this category. Move items to another category before deleting to avoid losing associations.`}
+            </Text>
+          )}
+        </Space>
+      ),
+      okText: 'Yes, delete',
+      cancelText: 'No',
+      okButtonProps: { danger: true },
+      async onOk () {
+        try {
+          await deleteCategory({
+            restaurantId: rid,
+            categoryId: selectedCategory._id || selectedCategory.id
+          });
+          message.success('Category deleted');
+          setSelectedCategoryId(null);
+          setMoveTargetId(null);
+        } catch (err) {
+          console.error(err);
+          message.error(err?.response?.data?.message || 'Failed to delete category');
+          throw err;
+        }
+      }
+    });
+  };
+
   if (isLoading || isFetching) {
     return (
       <div style={{ padding: 12 }}>
@@ -202,7 +243,25 @@ export default function CategoriesPage () {
         </Col>
 
         <Col xs={24} md={16}>
-          <Card title='Edit Category' bodyStyle={{ padding: 16 }}>
+          <Card
+            title={(
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Edit Category</span>
+                {selectedCategory && (
+                  <Button
+                    danger
+                    type='text'
+                    icon={<DeleteOutlined />}
+                    onClick={handleDeleteCategory}
+                    loading={deleting}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </div>
+            )}
+            bodyStyle={{ padding: 16 }}
+          >
             {selectedCategory
               ? (
                 <Form
