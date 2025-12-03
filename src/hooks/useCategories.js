@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchCategories, updateCategory } from '../api/categories';
+import { fetchCategories, updateCategory, createCategory } from '../api/categories';
 
 export function useCategories(restaurantId) {
     return useQuery({
@@ -16,6 +16,17 @@ export function useUpdateCategory() {
 
     return useMutation({
         mutationFn: ({ restaurantId, categoryId, data }) => updateCategory(restaurantId, categoryId, data),
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries(['categories', variables.restaurantId]);
+        }
+    });
+}
+
+export function useCreateCategory() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ restaurantId, data }) => createCategory(restaurantId, data),
         onSuccess: (data, variables) => {
             queryClient.invalidateQueries(['categories', variables.restaurantId]);
         }
